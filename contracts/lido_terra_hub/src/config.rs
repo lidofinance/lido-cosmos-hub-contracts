@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::state::{read_old_unbond_wait_lists, CONFIG, PARAMETERS};
+use crate::state::{CONFIG, PARAMETERS};
 use basset::hub::Parameters;
 use cosmwasm_std::{
-    attr, CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, MessageInfo, Response, StdError,
-    StdResult,
+    attr, CosmosMsg, DepsMut, DistributionMsg, Env, MessageInfo, Response, StdError, StdResult,
 };
 
 /// Update general parameters
@@ -28,8 +27,6 @@ pub fn execute_update_params(
     info: MessageInfo,
     epoch_period: Option<u64>,
     unbonding_period: Option<u64>,
-    peg_recovery_fee: Option<Decimal>,
-    er_threshold: Option<Decimal>,
     paused: Option<bool>,
 ) -> StdResult<Response> {
     // only owner can send this message.
@@ -41,30 +38,10 @@ pub fn execute_update_params(
 
     let params: Parameters = PARAMETERS.load(deps.storage)?;
 
-    if peg_recovery_fee.is_some() && peg_recovery_fee.unwrap().gt(&Decimal::one()) {
-        return Err(StdError::generic_err(
-            "peg_recovery_fee can not be greater than 1",
-        ));
-    }
-
-    if paused.is_some() && !paused.unwrap() || paused.is_none() {
-        let old_unbond_wait_list_entries = read_old_unbond_wait_lists(deps.storage, Some(1u32))?;
-        if !old_unbond_wait_list_entries.is_empty() {
-            return Err(StdError::generic_err(
-                "cannot unpause contract with old unbond wait lists",
-            ));
-        }
-    }
-
     let new_params = Parameters {
         epoch_period: epoch_period.unwrap_or(params.epoch_period),
         underlying_coin_denom: params.underlying_coin_denom,
         unbonding_period: unbonding_period.unwrap_or(params.unbonding_period),
-        peg_recovery_fee: peg_recovery_fee.unwrap_or(params.peg_recovery_fee),
-        er_threshold: er_threshold
-            .unwrap_or(params.er_threshold)
-            .min(Decimal::one()),
-        reward_denom: params.reward_denom,
         paused,
     };
 
@@ -83,7 +60,6 @@ pub fn execute_update_config(
     info: MessageInfo,
     owner: Option<String>,
     rewards_dispatcher_contract: Option<String>,
-    bluna_token_contract: Option<String>,
     stluna_token_contract: Option<String>,
     airdrop_registry_contract: Option<String>,
     validators_registry_contract: Option<String>,
@@ -117,21 +93,6 @@ pub fn execute_update_config(
         let msg: CosmosMsg =
             CosmosMsg::Distribution(DistributionMsg::SetWithdrawAddress { address: reward });
         messages.push(msg);
-    }
-
-    if let Some(token) = bluna_token_contract {
-        let token_raw = deps.api.addr_canonicalize(&token)?;
-
-        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            if last_config.bluna_token_contract.is_some() {
-                return Err(StdError::generic_err(
-                    "updating bLuna token address is forbidden",
-                ));
-            }
-
-            last_config.bluna_token_contract = Some(token_raw);
-            Ok(last_config)
-        })?;
     }
 
     if let Some(token) = stluna_token_contract {

@@ -12,16 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cosmwasm_std::{Decimal, Uint128};
+use cosmwasm_std::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub hub_contract: String,
-    pub bluna_reward_contract: String,
     pub stluna_reward_denom: String,
-    pub bluna_reward_denom: String,
     pub lido_fee_address: String,
     pub lido_fee_rate: Decimal,
 }
@@ -29,16 +27,11 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    SwapToRewardDenom {
-        bluna_total_bonded: Uint128,
-        stluna_total_bonded: Uint128,
-    },
+    SwapToRewardDenom {},
     UpdateConfig {
         owner: Option<String>,
         hub_contract: Option<String>,
-        bluna_reward_contract: Option<String>,
         stluna_reward_denom: Option<String>,
-        bluna_reward_denom: Option<String>,
         lido_fee_address: Option<String>,
         lido_fee_rate: Option<Decimal>,
     },

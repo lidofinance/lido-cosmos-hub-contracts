@@ -24,7 +24,6 @@ use terra_cosmwasm::{
 };
 
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
-pub const MOCK_BLUNA_REWARD_CONTRACT_ADDR: &str = "reward";
 pub const MOCK_LIDO_FEE_ADDRESS: &str = "lido_fee";
 
 pub fn mock_dependencies(
@@ -145,8 +144,15 @@ impl WasmMockQuerier {
                                 QuerierResult::Ok(ContractResult::from(to_binary(&SwapResponse {
                                     receive: Coin::new(offer_coin.amount.u128() / 32, ask_denom), //1uusd = 0.03125uluna
                                 })))
+                            } else if offer_coin.denom == "usdr" && ask_denom == "uluna" {
+                                QuerierResult::Ok(ContractResult::from(to_binary(&SwapResponse {
+                                    receive: Coin::new(offer_coin.amount.u128() / 64, ask_denom), //1usdr = 0.015625uluna
+                                })))
                             } else {
-                                panic!("unknown denom")
+                                panic!(
+                                    "unknown denom: offer {}, ask {}",
+                                    offer_coin.denom, ask_denom
+                                )
                             }
                         }
                         _ => panic!("DO NOT ENTER HERE"),

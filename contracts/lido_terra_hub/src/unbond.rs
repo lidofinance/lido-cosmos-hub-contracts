@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::contract::{query_total_bluna_issued, slashing};
+use crate::contract::slashing;
 use crate::state::{
     get_finished_amount, read_unbond_history, remove_unbond_wait_list, store_unbond_history,
     store_unbond_wait_list, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
@@ -27,96 +27,6 @@ use cw20::Cw20ExecuteMsg;
 use lido_terra_validators_registry::common::calculate_undelegations;
 use lido_terra_validators_registry::registry::ValidatorResponse;
 use signed_integer::SignedInt;
-
-/// This message must be call by receive_cw20
-/// This message will undelegate coin and burn basset token
-pub(crate) fn execute_unbond(
-    mut deps: DepsMut,
-    env: Env,
-    amount: Uint128,
-    sender: String,
-) -> StdResult<Response> {
-    // Read params
-    let params = PARAMETERS.load(deps.storage)?;
-    let epoch_period = params.epoch_period;
-    let threshold = params.er_threshold;
-    let recovery_fee = params.peg_recovery_fee;
-
-    let mut current_batch = CURRENT_BATCH.load(deps.storage)?;
-
-    // Check slashing, update state, and calculate the new exchange rate.
-    let mut state = slashing(&mut deps, env.clone())?;
-
-    let mut total_supply = query_total_bluna_issued(deps.as_ref())?;
-
-    // Collect all the requests within a epoch period
-    // Apply peg recovery fee
-    let amount_with_fee: Uint128;
-    if state.bluna_exchange_rate < threshold {
-        let max_peg_fee = amount * recovery_fee;
-        let required_peg_fee = (total_supply + current_batch.requested_bluna_with_fee)
-            .checked_sub(state.total_bond_bluna_amount)?;
-        let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
-        amount_with_fee = amount.checked_sub(peg_fee)?;
-    } else {
-        amount_with_fee = amount;
-    }
-    current_batch.requested_bluna_with_fee += amount_with_fee;
-
-    store_unbond_wait_list(
-        deps.storage,
-        current_batch.id,
-        sender.clone(),
-        amount_with_fee,
-        UnbondType::BLuna,
-    )?;
-
-    total_supply -= amount;
-
-    // Update exchange rate
-    state.update_bluna_exchange_rate(total_supply, current_batch.requested_bluna_with_fee);
-
-    let current_time = env.block.time.seconds();
-    let passed_time = current_time - state.last_unbonded_time;
-
-    let mut messages: Vec<CosmosMsg> = vec![];
-
-    // If the epoch period is passed, the undelegate message would be sent.
-    if passed_time > epoch_period {
-        let mut undelegate_msgs =
-            process_undelegations(&mut deps, env, &mut current_batch, &mut state)?;
-        messages.append(&mut undelegate_msgs);
-    }
-
-    // Store the new requested_with_fee or id in the current batch
-    CURRENT_BATCH.save(deps.storage, &current_batch)?;
-
-    // Store state's new exchange rate
-    STATE.save(deps.storage, &state)?;
-
-    // Send Burn message to token contract
-    let config = CONFIG.load(deps.storage)?;
-    let token_address =
-        deps.api
-            .addr_humanize(&config.bluna_token_contract.ok_or_else(|| {
-                StdError::generic_err("the token contract must have been registered")
-            })?)?;
-
-    let burn_msg = Cw20ExecuteMsg::Burn { amount };
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: token_address.to_string(),
-        msg: to_binary(&burn_msg)?,
-        funds: vec![],
-    }));
-
-    let res = Response::new().add_messages(messages).add_attributes(vec![
-        attr("action", "burn"),
-        attr("from", sender),
-        attr("burnt_amount", amount),
-        attr("unbonded_amount", amount_with_fee),
-    ]);
-    Ok(res)
-}
 
 pub fn execute_withdraw_unbonded(
     mut deps: DepsMut,
@@ -181,9 +91,8 @@ fn calculate_newly_added_unbonded_amount(
     storage: &mut dyn Storage,
     last_processed_batch: u64,
     historical_time: u64,
-) -> (Uint256, Uint256, u64) {
+) -> (Uint256, u64) {
     let mut stluna_total_unbonded_amount = Uint256::zero();
-    let mut bluna_total_unbonded_amount = Uint256::zero();
     let mut batch_count: u64 = 0;
 
     // Iterate over unbonded histories that have been processed
@@ -208,21 +117,12 @@ fn calculate_newly_added_unbonded_amount(
         let stluna_historical_rate = Decimal256::from(history.stluna_withdraw_rate);
         let stluna_unbonded_amount = stluna_burnt_amount * stluna_historical_rate;
 
-        let bluna_burnt_amount = Uint256::from(history.bluna_amount);
-        let bluna_historical_rate = Decimal256::from(history.bluna_withdraw_rate);
-        let bluna_unbonded_amount = bluna_burnt_amount * bluna_historical_rate;
-
         stluna_total_unbonded_amount += stluna_unbonded_amount;
-        bluna_total_unbonded_amount += bluna_unbonded_amount;
         batch_count += 1;
         i += 1;
     }
 
-    (
-        stluna_total_unbonded_amount,
-        bluna_total_unbonded_amount,
-        batch_count,
-    )
+    (stluna_total_unbonded_amount, batch_count)
 }
 
 fn calculate_new_withdraw_rate(
@@ -282,7 +182,7 @@ fn process_withdraw_rate(
 
     let last_processed_batch = state.last_processed_batch;
 
-    let (stluna_total_unbonded_amount, bluna_total_unbonded_amount, batch_count) =
+    let (stluna_total_unbonded_amount, batch_count) =
         calculate_newly_added_unbonded_amount(deps.storage, last_processed_batch, historical_time);
 
     if batch_count < 1 {
@@ -292,22 +192,9 @@ fn process_withdraw_rate(
     let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
     let actual_unbonded_amount = balance_change.0;
 
-    let mut bluna_unbond_ratio = Decimal256::zero();
-    if stluna_total_unbonded_amount + bluna_total_unbonded_amount > Uint256::zero() {
-        let stluna_unbond_ratio = Decimal256::from_ratio(
-            stluna_total_unbonded_amount.0,
-            (stluna_total_unbonded_amount + bluna_total_unbonded_amount).0,
-        );
-        bluna_unbond_ratio = Decimal256::one() - stluna_unbond_ratio;
-    }
-
-    let bluna_actual_unbonded_amount = Uint256::from(actual_unbonded_amount) * bluna_unbond_ratio;
-    // Use signed integer in case of some rogue transfers.
-    let bluna_slashed_amount =
-        SignedInt::from_subtraction(bluna_total_unbonded_amount, bluna_actual_unbonded_amount);
     let stluna_slashed_amount = SignedInt::from_subtraction(
         stluna_total_unbonded_amount,
-        Uint256::from(actual_unbonded_amount) - bluna_actual_unbonded_amount,
+        Uint256::from(actual_unbonded_amount),
     );
 
     // Iterate again to calculate the withdraw rate for each unprocessed history
@@ -337,16 +224,9 @@ fn process_withdraw_rate(
             stluna_total_unbonded_amount,
             stluna_slashed_amount,
         );
-        let bluna_new_withdraw_rate = calculate_new_withdraw_rate(
-            history.bluna_amount,
-            history.bluna_withdraw_rate,
-            bluna_total_unbonded_amount,
-            bluna_slashed_amount,
-        );
 
         let mut history_for_i = history;
         // store the history and mark it as released
-        history_for_i.bluna_withdraw_rate = bluna_new_withdraw_rate;
         history_for_i.stluna_withdraw_rate = stluna_new_withdraw_rate;
         history_for_i.released = true;
         store_unbond_history(deps.storage, iterator, history_for_i)?;
@@ -471,23 +351,14 @@ fn process_undelegations(
 ) -> StdResult<Vec<CosmosMsg>> {
     // Apply the current exchange rate.
     let stluna_undelegation_amount = current_batch.requested_stluna * state.stluna_exchange_rate;
-    let bluna_undelegation_amount =
-        current_batch.requested_bluna_with_fee * state.bluna_exchange_rate;
     let delegator = env.contract.address;
 
     // Send undelegated requests to possibly more than one validators
-    let undelegated_msgs = pick_validator(
-        deps,
-        bluna_undelegation_amount + stluna_undelegation_amount,
-        delegator.to_string(),
-    )?;
+    let undelegated_msgs = pick_validator(deps, stluna_undelegation_amount, delegator.to_string())?;
 
     state.total_bond_stluna_amount = state
         .total_bond_stluna_amount
         .checked_sub(stluna_undelegation_amount)?;
-    state.total_bond_bluna_amount = state
-        .total_bond_bluna_amount
-        .checked_sub(bluna_undelegation_amount)?;
 
     // Store history for withdraw unbonded
     let history = UnbondHistory {
@@ -497,10 +368,6 @@ fn process_undelegations(
         stluna_applied_exchange_rate: state.stluna_exchange_rate,
         stluna_withdraw_rate: state.stluna_exchange_rate,
 
-        bluna_amount: current_batch.requested_bluna_with_fee,
-        bluna_applied_exchange_rate: state.bluna_exchange_rate,
-        bluna_withdraw_rate: state.bluna_exchange_rate,
-
         released: false,
     };
 
@@ -508,7 +375,6 @@ fn process_undelegations(
     // batch info must be updated to new batch
     current_batch.id += 1;
     current_batch.requested_stluna = Uint128::zero();
-    current_batch.requested_bluna_with_fee = Uint128::zero();
 
     // state.last_unbonded_time must be updated to the current block time
     state.last_unbonded_time = env.block.time.seconds();

@@ -20,6 +20,5 @@ mod config;
 mod math;
 mod unbond;
 
-mod convert;
 #[cfg(test)]
 mod testing;

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::contract::{query_total_bluna_issued, query_total_stluna_issued, slashing};
+use crate::contract::{query_total_stluna_issued, slashing};
 use crate::math::decimal_division;
 use crate::state::{CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
 use basset::hub::BondType;
@@ -33,8 +33,6 @@ pub fn execute_bond(
 ) -> Result<Response, StdError> {
     let params = PARAMETERS.load(deps.storage)?;
     let coin_denom = params.underlying_coin_denom;
-    let threshold = params.er_threshold;
-    let recovery_fee = params.peg_recovery_fee;
     let config = CONFIG.load(deps.storage)?;
 
     let reward_dispatcher_addr =
@@ -50,7 +48,6 @@ pub fn execute_bond(
     // current batch requested fee is need for accurate exchange rate computation.
     let current_batch = CURRENT_BATCH.load(deps.storage)?;
     let requested_with_fee = match bond_type {
-        BondType::BLuna => current_batch.requested_bluna_with_fee,
         BondType::StLuna | BondType::BondRewards => current_batch.requested_stluna,
     };
 
@@ -77,7 +74,6 @@ pub fn execute_bond(
 
     // get the total supply
     let mut total_supply = match bond_type {
-        BondType::BLuna => query_total_bluna_issued(deps.as_ref()).unwrap_or_default(),
         BondType::StLuna | BondType::BondRewards => {
             query_total_stluna_issued(deps.as_ref()).unwrap_or_default()
         }
@@ -85,19 +81,6 @@ pub fn execute_bond(
 
     // peg recovery fee should be considered
     let mint_amount = match bond_type {
-        BondType::BLuna => {
-            let bluna_mint_amount = decimal_division(payment.amount, state.bluna_exchange_rate);
-            let mut mint_amount_with_fee = bluna_mint_amount;
-            if state.bluna_exchange_rate < threshold {
-                let max_peg_fee = bluna_mint_amount * recovery_fee;
-                let required_peg_fee =
-                    (total_supply + bluna_mint_amount + current_batch.requested_bluna_with_fee)
-                        - (state.total_bond_bluna_amount + payment.amount);
-                let peg_fee = Uint128::min(max_peg_fee, required_peg_fee);
-                mint_amount_with_fee = bluna_mint_amount.checked_sub(peg_fee)?;
-            }
-            mint_amount_with_fee
-        }
         BondType::StLuna => decimal_division(payment.amount, state.stluna_exchange_rate),
         BondType::BondRewards => Uint128::zero(),
     };
@@ -108,11 +91,6 @@ pub fn execute_bond(
     // exchange rate should be updated for future
     STATE.update(deps.storage, |mut prev_state| -> StdResult<_> {
         match bond_type {
-            BondType::BLuna => {
-                prev_state.total_bond_bluna_amount += payment.amount;
-                prev_state.update_bluna_exchange_rate(total_supply, requested_with_fee);
-                Ok(prev_state)
-            }
             BondType::BondRewards => {
                 prev_state.total_bond_stluna_amount += payment.amount;
                 prev_state.update_stluna_exchange_rate(total_supply, requested_with_fee);
@@ -177,11 +155,6 @@ pub fn execute_bond(
     };
 
     let token_address = match bond_type {
-        BondType::BLuna => deps
-            .api
-            .addr_humanize(&config.bluna_token_contract.ok_or_else(|| {
-                StdError::generic_err("the token contract must have been registered")
-            })?)?,
         BondType::StLuna => deps
             .api
             .addr_humanize(&config.stluna_token_contract.ok_or_else(|| {

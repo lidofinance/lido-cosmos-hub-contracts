@@ -85,12 +85,12 @@ impl WasmMockQuerier {
 
 #[derive(Clone, Default)]
 pub struct BalanceQuerier {
-    balances: HashMap<String, Coin>,
+    _balances: HashMap<String, Coin>,
 }
 
 #[derive(Clone, Default)]
 pub struct TokenQuerier {
-    balances: HashMap<String, HashMap<String, Uint128>>,
+    _balances: HashMap<String, HashMap<String, Uint128>>,
 }
 
 impl WasmMockQuerier {

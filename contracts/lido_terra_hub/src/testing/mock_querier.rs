@@ -206,9 +206,6 @@ impl WasmMockQuerier {
                         reward_dispatcher_contract: Some(
                             api.addr_canonicalize(&String::from("reward")).unwrap(),
                         ),
-                        bluna_token_contract: Some(
-                            api.addr_canonicalize(&String::from("token")).unwrap(),
-                        ),
                         validators_registry_contract: Some(
                             api.addr_canonicalize(&String::from("validators")).unwrap(),
                         ),

@@ -118,9 +118,6 @@ impl WasmMockQuerier {
                         validators_registry_contract: Some(
                             api.addr_canonicalize(&String::from("validators")).unwrap(),
                         ),
-                        bluna_token_contract: Some(
-                            api.addr_canonicalize(&String::from("token")).unwrap(),
-                        ),
                         airdrop_registry_contract: Some(
                             api.addr_canonicalize(&String::from("airdrop")).unwrap(),
                         ),
@@ -173,7 +170,7 @@ impl WasmMockQuerier {
 
 #[derive(Clone, Default)]
 pub struct TokenQuerier {
-    balances: HashMap<String, HashMap<String, Uint128>>,
+    _balances: HashMap<String, HashMap<String, Uint128>>,
 }
 
 impl WasmMockQuerier {

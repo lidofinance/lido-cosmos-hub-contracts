@@ -23,14 +23,12 @@ use cosmwasm_std::{
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::state::{
-    all_unbond_history, get_unbond_requests, migrate_unbond_history, migrate_unbond_wait_lists,
-    query_get_finished_amount, read_validators, remove_whitelisted_validators_store, CONFIG,
-    CURRENT_BATCH, OLD_CONFIG, OLD_CURRENT_BATCH, OLD_STATE, PARAMETERS, STATE,
+    all_unbond_history, get_unbond_requests, query_get_finished_amount, CONFIG, CURRENT_BATCH,
+    PARAMETERS, STATE,
 };
-use crate::unbond::{execute_unbond, execute_unbond_stluna, execute_withdraw_unbonded};
+use crate::unbond::{execute_unbond_stluna, execute_withdraw_unbonded};
 
 use crate::bond::execute_bond;
-use crate::convert::{convert_bluna_stluna, convert_stluna_bluna};
 use basset::hub::ExecuteMsg::SwapHook;
 use basset::hub::{
     AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
@@ -40,8 +38,6 @@ use basset::hub::{
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
 use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
-use lido_terra_validators_registry::msg::ExecuteMsg::AddValidator;
-use lido_terra_validators_registry::registry::Validator;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -58,7 +54,6 @@ pub fn instantiate(
         creator: sndr_raw,
         reward_dispatcher_contract: None,
         validators_registry_contract: None,
-        bluna_token_contract: None,
         airdrop_registry_contract: None,
         stluna_token_contract: None,
     };
@@ -66,7 +61,6 @@ pub fn instantiate(
 
     // store state
     let state = State {
-        bluna_exchange_rate: Decimal::one(),
         stluna_exchange_rate: Decimal::one(),
         last_index_modification: env.block.time.seconds(),
         last_unbonded_time: env.block.time.seconds(),
@@ -87,9 +81,6 @@ pub fn instantiate(
         epoch_period: msg.epoch_period,
         underlying_coin_denom: msg.underlying_coin_denom,
         unbonding_period: msg.unbonding_period,
-        peg_recovery_fee: msg.peg_recovery_fee,
-        er_threshold: msg.er_threshold.min(Decimal::one()),
-        reward_denom: msg.reward_denom,
         paused: Some(false),
     };
 
@@ -97,7 +88,6 @@ pub fn instantiate(
 
     let batch = CurrentBatch {
         id: 1,
-        requested_bluna_with_fee: Default::default(),
         requested_stluna: Default::default(),
     };
     CURRENT_BATCH.save(deps.storage, &batch)?;
@@ -108,28 +98,13 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
-    if let ExecuteMsg::MigrateUnbondWaitList { limit } = msg {
-        return migrate_unbond_wait_lists(deps.storage, limit);
-    }
-
     if let ExecuteMsg::UpdateParams {
         epoch_period,
         unbonding_period,
-        peg_recovery_fee,
-        er_threshold,
         paused,
     } = msg
     {
-        return execute_update_params(
-            deps,
-            env,
-            info,
-            epoch_period,
-            unbonding_period,
-            peg_recovery_fee,
-            er_threshold,
-            paused,
-        );
+        return execute_update_params(deps, env, info, epoch_period, unbonding_period, paused);
     }
 
     let params: Parameters = PARAMETERS.load(deps.storage)?;
@@ -139,7 +114,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::Bond {} => execute_bond(deps, env, info, BondType::BLuna),
         ExecuteMsg::BondForStLuna {} => execute_bond(deps, env, info, BondType::StLuna),
         ExecuteMsg::BondRewards {} => execute_bond(deps, env, info, BondType::BondRewards),
         ExecuteMsg::UpdateGlobalIndex { airdrop_hooks } => {
@@ -150,23 +124,11 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::UpdateParams {
             epoch_period,
             unbonding_period,
-            peg_recovery_fee,
-            er_threshold,
             paused,
-        } => execute_update_params(
-            deps,
-            env,
-            info,
-            epoch_period,
-            unbonding_period,
-            peg_recovery_fee,
-            er_threshold,
-            paused,
-        ),
+        } => execute_update_params(deps, env, info, epoch_period, unbonding_period, paused),
         ExecuteMsg::UpdateConfig {
             owner,
             rewards_dispatcher_contract,
-            bluna_token_contract,
             airdrop_registry_contract,
             validators_registry_contract,
             stluna_token_contract,
@@ -176,7 +138,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             info,
             owner,
             rewards_dispatcher_contract,
-            bluna_token_contract,
             stluna_token_contract,
             airdrop_registry_contract,
             validators_registry_contract,
@@ -213,7 +174,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             src_validator,
             redelegations,
         } => execute_redelegate_proxy(deps, env, info, src_validator, redelegations),
-        ExecuteMsg::MigrateUnbondWaitList { limit: _ } => Err(StdError::generic_err("forbidden")),
     }
 }
 
@@ -263,14 +223,6 @@ pub fn receive_cw20(
     // only token contract can execute this message
     let conf = CONFIG.load(deps.storage)?;
 
-    let bluna_contract_addr = if let Some(b) = conf.bluna_token_contract {
-        b
-    } else {
-        return Err(StdError::generic_err(
-            "the bLuna token contract must have been registered",
-        ));
-    };
-
     let stluna_contract_addr = if let Some(st) = conf.stluna_token_contract {
         st
     } else {
@@ -281,19 +233,8 @@ pub fn receive_cw20(
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::Unbond {} => {
-            if contract_addr == bluna_contract_addr {
-                execute_unbond(deps, env, cw20_msg.amount, cw20_msg.sender)
-            } else if contract_addr == stluna_contract_addr {
+            if contract_addr == stluna_contract_addr {
                 execute_unbond_stluna(deps, env, cw20_msg.amount, cw20_msg.sender)
-            } else {
-                Err(StdError::generic_err("unauthorized"))
-            }
-        }
-        Cw20HookMsg::Convert {} => {
-            if contract_addr == bluna_contract_addr {
-                convert_bluna_stluna(deps, env, cw20_msg.amount, cw20_msg.sender)
-            } else if contract_addr == stluna_contract_addr {
-                convert_stluna_bluna(deps, env, cw20_msg.amount, cw20_msg.sender)
             } else {
                 Err(StdError::generic_err("unauthorized"))
             }
@@ -312,7 +253,7 @@ pub fn execute_update_global(
     let mut messages: Vec<CosmosMsg> = vec![];
 
     let config = CONFIG.load(deps.storage)?;
-    let reward_addr =
+    let reward_addr_dispatcher =
         deps.api
             .addr_humanize(&config.reward_dispatcher_contract.ok_or_else(|| {
                 StdError::generic_err("the reward contract must have been registered")
@@ -337,22 +278,17 @@ pub fn execute_update_global(
     let mut withdraw_msgs = withdraw_all_rewards(&deps, env.contract.address.to_string())?;
     messages.append(&mut withdraw_msgs);
 
-    let state = STATE.load(deps.storage)?;
-
     // Send Swap message to reward contract
-    let swap_msg = SwapToRewardDenom {
-        stluna_total_bonded: state.total_bond_stluna_amount,
-        bluna_total_bonded: state.total_bond_bluna_amount,
-    };
+    let swap_msg = SwapToRewardDenom {};
 
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: reward_addr.to_string(),
+        contract_addr: reward_addr_dispatcher.to_string(),
         msg: to_binary(&swap_msg)?,
         funds: vec![],
     }));
 
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: reward_addr.to_string(),
+        contract_addr: reward_addr_dispatcher.to_string(),
         msg: to_binary(&DispatchRewards {})?,
         funds: vec![],
     }));
@@ -408,26 +344,18 @@ fn query_actual_state(deps: Deps, env: Env) -> StdResult<State> {
     }
 
     // Check the amount that contract thinks is bonded
-    let state_total_bonded = state.total_bond_bluna_amount + state.total_bond_stluna_amount;
-    if state_total_bonded.is_zero() {
+    if state.total_bond_stluna_amount.is_zero() {
         return Ok(state);
     }
 
     // Need total issued for updating the exchange rate
-    let bluna_total_issued = query_total_bluna_issued(deps)?;
     let stluna_total_issued = query_total_stluna_issued(deps)?;
     let current_batch = CURRENT_BATCH.load(deps.storage)?;
-    let current_requested_bluna_with_fee = current_batch.requested_bluna_with_fee;
     let current_requested_stluna = current_batch.requested_stluna;
 
-    if state_total_bonded.u128() > actual_total_bonded.u128() {
-        let bluna_bond_ratio =
-            Decimal::from_ratio(state.total_bond_bluna_amount, state_total_bonded);
-        state.total_bond_bluna_amount = actual_total_bonded * bluna_bond_ratio;
-        state.total_bond_stluna_amount =
-            actual_total_bonded.checked_sub(state.total_bond_bluna_amount)?;
+    if state.total_bond_stluna_amount.u128() > actual_total_bonded.u128() {
+        state.total_bond_stluna_amount = actual_total_bonded;
     }
-    state.update_bluna_exchange_rate(bluna_total_issued, current_requested_bluna_with_fee);
     state.update_stluna_exchange_rate(stluna_total_issued, current_requested_stluna);
     Ok(state)
 }
@@ -541,12 +469,6 @@ pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
     Ok(Response::new().add_attributes(vec![
         attr("action", "check_slashing"),
         attr(
-            "new_bluna_exchange_rate",
-            state.bluna_exchange_rate.to_string(),
-        ),
-        // #[deprecated]
-        attr("new_exchange_rate", state.bluna_exchange_rate.to_string()),
-        attr(
             "new_stluna_exchange_rate",
             state.stluna_exchange_rate.to_string(),
         ),
@@ -572,22 +494,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
-    let mut reward: Option<String> = None;
+    let mut reward_dispatcher: Option<String> = None;
     let mut validators_contract: Option<String> = None;
-    let mut bluna_token: Option<String> = None;
     let mut stluna_token: Option<String> = None;
     let mut airdrop: Option<String> = None;
     if config.reward_dispatcher_contract.is_some() {
-        reward = Some(
+        reward_dispatcher = Some(
             deps.api
                 .addr_humanize(&config.reward_dispatcher_contract.unwrap())?
-                .to_string(),
-        );
-    }
-    if config.bluna_token_contract.is_some() {
-        bluna_token = Some(
-            deps.api
-                .addr_humanize(&config.bluna_token_contract.unwrap())?
                 .to_string(),
         );
     }
@@ -615,30 +529,21 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 
     Ok(ConfigResponse {
         owner: deps.api.addr_humanize(&config.creator)?.to_string(),
-        reward_dispatcher_contract: reward,
+        reward_dispatcher_contract: reward_dispatcher,
         validators_registry_contract: validators_contract,
-        bluna_token_contract: bluna_token.clone(),
         airdrop_registry_contract: airdrop,
         stluna_token_contract: stluna_token,
-
-        token_contract: bluna_token,
     })
 }
 
 fn query_state(deps: Deps, env: Env) -> StdResult<StateResponse> {
     let state = query_actual_state(deps, env)?;
     let res = StateResponse {
-        bluna_exchange_rate: state.bluna_exchange_rate,
         stluna_exchange_rate: state.stluna_exchange_rate,
-        total_bond_bluna_amount: state.total_bond_bluna_amount,
         total_bond_stluna_amount: state.total_bond_stluna_amount,
-        last_index_modification: state.last_index_modification,
         prev_hub_balance: state.prev_hub_balance,
         last_unbonded_time: state.last_unbonded_time,
         last_processed_batch: state.last_processed_batch,
-
-        exchange_rate: state.bluna_exchange_rate,
-        total_bond_amount: state.total_bond_bluna_amount,
     };
     Ok(res)
 }
@@ -647,10 +552,7 @@ fn query_current_batch(deps: Deps) -> StdResult<CurrentBatchResponse> {
     let current_batch = CURRENT_BATCH.load(deps.storage)?;
     Ok(CurrentBatchResponse {
         id: current_batch.id,
-        requested_bluna_with_fee: current_batch.requested_bluna_with_fee,
         requested_stluna: current_batch.requested_stluna,
-
-        requested_with_fee: current_batch.requested_bluna_with_fee,
     })
 }
 
@@ -671,21 +573,6 @@ fn query_withdrawable_unbonded(
 
 fn query_params(deps: Deps) -> StdResult<Parameters> {
     PARAMETERS.load(deps.storage)
-}
-
-pub(crate) fn query_total_bluna_issued(deps: Deps) -> StdResult<Uint128> {
-    let token_address = deps.api.addr_humanize(
-        &CONFIG
-            .load(deps.storage)?
-            .bluna_token_contract
-            .ok_or_else(|| StdError::generic_err("token contract must have been registered"))?,
-    )?;
-    let token_info: TokenInfoResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: token_address.to_string(),
-            msg: to_binary(&Cw20QueryMsg::TokenInfo {})?,
-        }))?;
-    Ok(token_info.total_supply)
 }
 
 pub(crate) fn query_total_stluna_issued(deps: Deps) -> StdResult<Uint128> {
@@ -721,19 +608,11 @@ fn query_unbond_requests_limitation(
             batch_id: r.batch_id,
             time: r.time,
 
-            bluna_amount: r.bluna_amount,
-            bluna_applied_exchange_rate: r.bluna_applied_exchange_rate,
-            bluna_withdraw_rate: r.bluna_withdraw_rate,
-
             stluna_amount: r.stluna_amount,
             stluna_applied_exchange_rate: r.stluna_applied_exchange_rate,
             stluna_withdraw_rate: r.stluna_withdraw_rate,
 
             released: r.released,
-
-            amount: r.bluna_amount,
-            applied_exchange_rate: r.bluna_applied_exchange_rate,
-            withdraw_rate: r.bluna_withdraw_rate,
         })
         .collect();
 
@@ -744,94 +623,6 @@ fn query_unbond_requests_limitation(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    // migrate state
-    let old_state = OLD_STATE.load(deps.storage)?;
-    let new_state = State {
-        bluna_exchange_rate: old_state.exchange_rate,
-        stluna_exchange_rate: Decimal::one(),
-        total_bond_bluna_amount: old_state.total_bond_amount,
-        total_bond_stluna_amount: Uint128::zero(),
-        last_index_modification: old_state.last_index_modification,
-        prev_hub_balance: old_state.prev_hub_balance,
-        last_unbonded_time: old_state.last_unbonded_time,
-        last_processed_batch: old_state.last_processed_batch,
-    };
-    STATE.save(deps.storage, &new_state)?;
-
-    //migrate config
-    let old_config = OLD_CONFIG.load(deps.storage)?;
-    let new_config = Config {
-        creator: old_config.creator,
-        reward_dispatcher_contract: Some(
-            deps.api
-                .addr_canonicalize(&msg.reward_dispatcher_contract)?,
-        ),
-        validators_registry_contract: Some(
-            deps.api
-                .addr_canonicalize(&msg.validators_registry_contract)?,
-        ),
-        bluna_token_contract: old_config.token_contract,
-        stluna_token_contract: Some(deps.api.addr_canonicalize(&msg.stluna_token_contract)?),
-        airdrop_registry_contract: old_config.airdrop_registry_contract,
-    };
-    CONFIG.save(deps.storage, &new_config)?;
-
-    let old_params = PARAMETERS.load(deps.storage)?;
-    let new_params = Parameters {
-        epoch_period: old_params.epoch_period,
-        underlying_coin_denom: old_params.underlying_coin_denom,
-        unbonding_period: old_params.unbonding_period,
-        peg_recovery_fee: old_params.peg_recovery_fee,
-        er_threshold: old_params.er_threshold,
-        reward_denom: old_params.reward_denom,
-        paused: Some(true), // We pause the contract to be able to safely migrate unbond wait lists.
-    };
-    PARAMETERS.save(deps.storage, &new_params)?;
-
-    //migrate CurrentBatch
-    let old_current_batch = OLD_CURRENT_BATCH.load(deps.storage)?;
-    let new_current_batch = CurrentBatch {
-        id: old_current_batch.id,
-        requested_bluna_with_fee: old_current_batch.requested_with_fee,
-        requested_stluna: Uint128::zero(),
-    };
-    CURRENT_BATCH.save(deps.storage, &new_current_batch)?;
-
-    //migrate whitelisted validators
-    //we must add them to validators_registry_contract
-    let whitelisted_validators = read_validators(deps.storage)?;
-    let mut messages: Vec<CosmosMsg> = vec![];
-
-    let add_validators_messsages: StdResult<Vec<CosmosMsg>> = whitelisted_validators
-        .iter()
-        .map(|validator_address| {
-            Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: msg.validators_registry_contract.clone(),
-                msg: if let Ok(m) = to_binary(&AddValidator {
-                    validator: Validator {
-                        address: validator_address.clone(),
-                    },
-                }) {
-                    m
-                } else {
-                    return Err(StdError::generic_err("failed to binary encode message"));
-                },
-                funds: vec![],
-            }))
-        })
-        .collect();
-    messages.extend_from_slice(&add_validators_messsages?);
-
-    remove_whitelisted_validators_store(deps.storage)?;
-
-    let msg: CosmosMsg = CosmosMsg::Distribution(DistributionMsg::SetWithdrawAddress {
-        address: msg.reward_dispatcher_contract,
-    });
-    messages.push(msg);
-
-    // migrate unbond history
-    migrate_unbond_history(deps.storage)?;
-
-    Ok(Response::new().add_messages(messages))
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::new())
 }
