@@ -16,16 +16,12 @@ pub struct InstantiateMsg {
     pub epoch_period: u64,
     pub underlying_coin_denom: String,
     pub unbonding_period: u64,
-    pub peg_recovery_fee: Decimal,
-    pub er_threshold: Decimal,
-    pub reward_denom: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct State {
     pub stluna_exchange_rate: Decimal,
     pub total_bond_stluna_amount: Uint128,
-    pub last_index_modification: u64,
     pub prev_hub_balance: Uint128,
     pub last_unbonded_time: u64,
     pub last_processed_batch: u64,
@@ -87,7 +83,7 @@ pub enum ExecuteMsg {
     BondRewards {},
 
     /// Update global index
-    UpdateGlobalIndex {
+    DispatchRewards {
         airdrop_hooks: Option<Vec<Binary>>,
     },
 
