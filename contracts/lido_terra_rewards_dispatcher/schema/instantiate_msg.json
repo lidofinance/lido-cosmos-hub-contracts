@@ -3,20 +3,12 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "bluna_reward_contract",
-    "bluna_reward_denom",
     "hub_contract",
     "lido_fee_address",
     "lido_fee_rate",
     "stluna_reward_denom"
   ],
   "properties": {
-    "bluna_reward_contract": {
-      "type": "string"
-    },
-    "bluna_reward_denom": {
-      "type": "string"
-    },
     "hub_contract": {
       "type": "string"
     },

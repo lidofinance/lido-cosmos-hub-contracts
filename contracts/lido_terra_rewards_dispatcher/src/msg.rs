@@ -41,7 +41,7 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    // GetBufferedRewards returns the buffered amount of bLuna and stLuna rewards.
+    // GetBufferedRewards returns the buffered amount of stLuna rewards.
     GetBufferedRewards {},
     // Config returns config
     Config {},
