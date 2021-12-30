@@ -81,13 +81,13 @@ fn test_dispatch_rewards() {
     let msg = ExecuteMsg::DispatchRewards {};
 
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-    assert_eq!(4, res.messages.len());
+    assert_eq!(2, res.messages.len());
     for attr in res.attributes {
         if attr.key == "stluna_rewards" {
-            assert_eq!("380uluna", attr.value)
+            assert_eq!("190uluna", attr.value)
         }
         if attr.key == "lido_stluna_fee" {
-            assert_eq!("20uluna", attr.value)
+            assert_eq!("10uluna", attr.value)
         }
     }
 }
@@ -112,11 +112,11 @@ fn test_dispatch_rewards_zero_lido_fee() {
     let msg = ExecuteMsg::DispatchRewards {};
 
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-    assert_eq!(2, res.messages.len());
+    assert_eq!(1, res.messages.len());
 
     for attr in res.attributes {
         if attr.key == "stluna_rewards" {
-            assert_eq!("210uluna", attr.value)
+            assert_eq!("200uluna", attr.value)
         }
     }
 }
