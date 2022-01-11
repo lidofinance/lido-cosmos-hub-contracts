@@ -16,16 +16,6 @@
         }
       ]
     },
-    "bluna_token_contract": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/CanonicalAddr"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "creator": {
       "$ref": "#/definitions/CanonicalAddr"
     },

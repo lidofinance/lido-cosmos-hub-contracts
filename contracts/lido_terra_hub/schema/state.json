@@ -3,19 +3,14 @@
   "title": "State",
   "type": "object",
   "required": [
-    "bluna_exchange_rate",
     "last_index_modification",
     "last_processed_batch",
     "last_unbonded_time",
     "prev_hub_balance",
     "stluna_exchange_rate",
-    "total_bond_bluna_amount",
     "total_bond_stluna_amount"
   ],
   "properties": {
-    "bluna_exchange_rate": {
-      "$ref": "#/definitions/Decimal"
-    },
     "last_index_modification": {
       "type": "integer",
       "format": "uint64",
@@ -36,9 +31,6 @@
     },
     "stluna_exchange_rate": {
       "$ref": "#/definitions/Decimal"
-    },
-    "total_bond_bluna_amount": {
-      "$ref": "#/definitions/Uint128"
     },
     "total_bond_stluna_amount": {
       "$ref": "#/definitions/Uint128"

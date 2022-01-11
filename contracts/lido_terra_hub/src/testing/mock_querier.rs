@@ -148,8 +148,8 @@ impl WasmMockQuerier {
                             total_supply += *balance.1;
                         }
                         let token_inf: TokenInfo = TokenInfo {
-                            name: "bluna".to_string(),
-                            symbol: "BLUNA".to_string(),
+                            name: "stluna".to_string(),
+                            symbol: "STLUNA".to_string(),
                             decimals: 6,
                             total_supply,
                             mint: Some(MinterData {

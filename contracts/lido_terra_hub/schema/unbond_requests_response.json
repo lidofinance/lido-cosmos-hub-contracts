@@ -22,13 +22,10 @@
           },
           {
             "$ref": "#/definitions/Uint128"
-          },
-          {
-            "$ref": "#/definitions/Uint128"
           }
         ],
-        "maxItems": 3,
-        "minItems": 3
+        "maxItems": 2,
+        "minItems": 2
       }
     }
   },
