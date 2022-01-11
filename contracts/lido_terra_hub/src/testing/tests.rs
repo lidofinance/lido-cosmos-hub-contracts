@@ -51,7 +51,7 @@ use cw20_base::msg::ExecuteMsg::{Burn, Mint};
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::state::{read_unbond_wait_list, CONFIG, NEW_PREFIX_WAIT_MAP};
 use basset::airdrop::PairHandleMsg;
-use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
+use lido_terra_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
 
 use basset::airdrop::ExecuteMsg::{FabricateANCClaim, FabricateMIRClaim};
 use basset::hub::Cw20HookMsg::Unbond;
@@ -68,7 +68,6 @@ use basset::hub::{
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use cosmwasm_storage::Bucket;
 use std::borrow::BorrowMut;
-use std::str::FromStr;
 
 const DEFAULT_VALIDATOR: &str = "default-validator";
 const DEFAULT_VALIDATOR2: &str = "default-validator2000";
@@ -109,9 +108,6 @@ pub fn initialize<S: Storage, A: Api, Q: Querier>(
         epoch_period: 30,
         underlying_coin_denom: "uluna".to_string(),
         unbonding_period: 2,
-        peg_recovery_fee: Decimal::zero(),
-        er_threshold: Decimal::one(),
-        reward_denom: "uusd".to_string(),
     };
 
     let owner_info = mock_info(owner.as_str(), &[]);
@@ -190,9 +186,6 @@ fn proper_initialization() {
         epoch_period: 30,
         underlying_coin_denom: "uluna".to_string(),
         unbonding_period: 210,
-        peg_recovery_fee: Decimal::zero(),
-        er_threshold: Decimal::one(),
-        reward_denom: "uusd".to_string(),
     };
 
     let owner = String::from("owner1");
@@ -249,34 +242,6 @@ fn proper_initialization() {
             requested_stluna: Default::default(),
         }
     );
-}
-
-/// Check that we can not initialize the contract with peg_recovery_fee > 1.0.
-#[test]
-fn bad_initialization() {
-    let mut deps = dependencies(&[]);
-
-    let _validator = sample_validator(DEFAULT_VALIDATOR);
-    set_validator_mock(&mut deps.querier);
-
-    // successful call
-    let msg = InstantiateMsg {
-        epoch_period: 30,
-        underlying_coin_denom: "uluna".to_string(),
-        unbonding_period: 210,
-        peg_recovery_fee: Decimal::from_str("1.1").unwrap(),
-        er_threshold: Decimal::one(),
-        reward_denom: "uusd".to_string(),
-    };
-
-    let owner = String::from("owner1");
-    let owner_info = mock_info(owner.as_str(), &[]);
-
-    let res = instantiate(deps.as_mut(), mock_env(), owner_info, msg);
-    assert_eq!(
-        StdError::generic_err("peg_recovery_fee can not be greater than 1"),
-        res.err().unwrap()
-    )
 }
 
 #[test]
@@ -545,7 +510,7 @@ fn proper_bond_rewards() {
     assert_eq!(res, StdError::generic_err("unauthorized"));
 }
 
-/// Covers if Withdraw message, swap message, and update global index are sent.
+/// Covers if Withdraw message, swap message, and dispatch rewards are sent.
 #[test]
 pub fn proper_update_global_index() {
     let mut deps = dependencies(&[]);
@@ -573,13 +538,13 @@ pub fn proper_update_global_index() {
         .with_token_balances(&[(&String::from("token"), &[]), (&stluna_token_contract, &[])]);
 
     // fails if there is no delegation
-    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
+    let reward_msg = ExecuteMsg::DispatchRewards {
         airdrop_hooks: None,
     };
 
     let info = mock_info(&addr1, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
-    assert_eq!(res.messages.len(), 2);
+    assert_eq!(res.messages.len(), 1);
 
     // bond
     do_bond_stluna(&mut deps, addr1.clone(), bond_amount);
@@ -602,13 +567,13 @@ pub fn proper_update_global_index() {
     deps.querier
         .with_token_balances(&[(&stluna_token_contract, &[(&addr1, &bond_amount)])]);
 
-    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
+    let reward_msg = ExecuteMsg::DispatchRewards {
         airdrop_hooks: None,
     };
 
     let info = mock_info(&addr1, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
-    assert_eq!(3, res.messages.len());
+    assert_eq!(2, res.messages.len());
 
     let withdraw = &res.messages[0];
     match withdraw.msg.clone() {
@@ -618,20 +583,7 @@ pub fn proper_update_global_index() {
         _ => panic!("Unexpected message: {:?}", withdraw),
     }
 
-    let swap = &res.messages[1];
-    match swap.msg.clone() {
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr,
-            msg,
-            funds: _,
-        }) => {
-            assert_eq!(contract_addr, reward_contract);
-            assert_eq!(msg, to_binary(&SwapToRewardDenom {}).unwrap())
-        }
-        _ => panic!("Unexpected message: {:?}", swap),
-    }
-
-    let update_g_index = &res.messages[2];
+    let update_g_index = &res.messages[1];
     match update_g_index.msg.clone() {
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr,
@@ -698,13 +650,13 @@ pub fn proper_update_global_index_two_validators() {
     deps.querier
         .with_token_balances(&[(&stluna_token_contract, &[(&addr1, &Uint128::from(10u64))])]);
 
-    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
+    let reward_msg = ExecuteMsg::DispatchRewards {
         airdrop_hooks: None,
     };
 
     let info = mock_info(&addr1, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
-    assert_eq!(4, res.messages.len());
+    assert_eq!(3, res.messages.len());
 
     let withdraw = &res.messages[0];
     match withdraw.msg.clone() {
@@ -770,13 +722,13 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
     deps.querier
         .with_token_balances(&[(&stluna_token_contract, &[(&addr1, &Uint128::from(10u64))])]);
 
-    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
+    let reward_msg = ExecuteMsg::DispatchRewards {
         airdrop_hooks: None,
     };
 
     let info = mock_info(&addr1, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
-    assert_eq!(3, res.messages.len());
+    assert_eq!(2, res.messages.len());
 
     let withdraw = &res.messages[0];
     match withdraw.msg.clone() {
@@ -2595,13 +2547,13 @@ fn proper_update_global_index_with_airdrop() {
         proof: vec!["proof".to_string()],
     })
     .unwrap();
-    let reward_msg = ExecuteMsg::UpdateGlobalIndex {
+    let reward_msg = ExecuteMsg::DispatchRewards {
         airdrop_hooks: Some(vec![binary_msg.clone(), binary_msg2.clone()]),
     };
 
     let info = mock_info(&addr1, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
-    assert_eq!(5, res.messages.len());
+    assert_eq!(4, res.messages.len());
 
     assert_eq!(
         res.messages[0].msg.clone(),

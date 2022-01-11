@@ -37,7 +37,7 @@ use basset::hub::{
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
-use lido_terra_rewards_dispatcher::msg::ExecuteMsg::{DispatchRewards, SwapToRewardDenom};
+use lido_terra_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -62,19 +62,12 @@ pub fn instantiate(
     // store state
     let state = State {
         stluna_exchange_rate: Decimal::one(),
-        last_index_modification: env.block.time.seconds(),
         last_unbonded_time: env.block.time.seconds(),
         last_processed_batch: 0u64,
         ..Default::default()
     };
 
     STATE.save(deps.storage, &state)?;
-
-    if msg.peg_recovery_fee.gt(&Decimal::one()) {
-        return Err(StdError::generic_err(
-            "peg_recovery_fee can not be greater than 1",
-        ));
-    }
 
     // instantiate parameters
     let params = Parameters {
@@ -116,8 +109,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::BondForStLuna {} => execute_bond(deps, env, info, BondType::StLuna),
         ExecuteMsg::BondRewards {} => execute_bond(deps, env, info, BondType::BondRewards),
-        ExecuteMsg::UpdateGlobalIndex { airdrop_hooks } => {
-            execute_update_global(deps, env, info, airdrop_hooks)
+        ExecuteMsg::DispatchRewards { airdrop_hooks } => {
+            execute_dispatch_rewards(deps, env, info, airdrop_hooks)
         }
         ExecuteMsg::WithdrawUnbonded {} => execute_withdraw_unbonded(deps, env, info),
         ExecuteMsg::CheckSlashing {} => execute_slashing(deps, env),
@@ -242,9 +235,8 @@ pub fn receive_cw20(
     }
 }
 
-/// Update general parameters
 /// Permissionless
-pub fn execute_update_global(
+pub fn execute_dispatch_rewards(
     deps: DepsMut,
     env: Env,
     _info: MessageInfo,
@@ -278,30 +270,15 @@ pub fn execute_update_global(
     let mut withdraw_msgs = withdraw_all_rewards(&deps, env.contract.address.to_string())?;
     messages.append(&mut withdraw_msgs);
 
-    // Send Swap message to reward contract
-    let swap_msg = SwapToRewardDenom {};
-
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: reward_addr_dispatcher.to_string(),
-        msg: to_binary(&swap_msg)?,
-        funds: vec![],
-    }));
-
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: reward_addr_dispatcher.to_string(),
         msg: to_binary(&DispatchRewards {})?,
         funds: vec![],
     }));
 
-    //update state last modified
-    STATE.update(deps.storage, |mut last_state| -> StdResult<_> {
-        last_state.last_index_modification = env.block.time.seconds();
-        Ok(last_state)
-    })?;
-
     let res = Response::new()
         .add_messages(messages)
-        .add_attributes(vec![attr("action", "update_global_index")]);
+        .add_attributes(vec![attr("action", "dispatch_rewards")]);
     Ok(res)
 }
 

@@ -4,6 +4,7 @@ use terra_cosmwasm::TerraQuerier;
 
 static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 
+// TODO: possibly remove / rewrite
 pub fn compute_tax(querier: &QuerierWrapper, coin: &Coin) -> StdResult<Uint128> {
     // https://docs.terra.money/Reference/Terra-core/Module-specifications/spec-auth.html#stability-fee
     // In addition to the gas fee, the ante handler charges a stability fee that is a percentage of the transaction's value only for the Stable Coins except LUNA.

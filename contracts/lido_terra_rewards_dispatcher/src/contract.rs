@@ -17,16 +17,14 @@ use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
     attr, to_binary, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+    MessageInfo, Response, StdError, StdResult, WasmMsg,
 };
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
 use basset::hub::ExecuteMsg::BondRewards;
 use basset::{compute_lido_fee, deduct_tax};
-use terra_cosmwasm::{
-    create_swap_msg, ExchangeRatesResponse, SwapResponse, TerraMsgWrapper, TerraQuerier,
-};
+use terra_cosmwasm::TerraMsgWrapper;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -56,7 +54,6 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     match msg {
-        ExecuteMsg::SwapToRewardDenom {} => execute_swap(deps, env, info),
         ExecuteMsg::DispatchRewards {} => execute_dispatch_rewards(deps, env, info),
         ExecuteMsg::UpdateConfig {
             owner,
@@ -137,80 +134,6 @@ pub fn execute_update_config(
     Ok(Response::default())
 }
 
-pub fn execute_swap(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-) -> StdResult<Response<TerraMsgWrapper>> {
-    let config = CONFIG.load(deps.storage)?;
-    let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
-
-    if info.sender != hub_addr {
-        return Err(StdError::generic_err("unauthorized"));
-    }
-
-    let contr_addr = env.contract.address;
-    let balance = deps.querier.query_all_balances(contr_addr)?;
-    let (total_luna_rewards_available, msgs) =
-        convert_to_luna(&deps, balance.clone(), config.stluna_reward_denom)?;
-
-    let res = Response::new().add_messages(msgs).add_attributes(vec![
-        attr("action", "swap"),
-        attr("initial_balance", format!("{:?}", balance)),
-        attr("total_luna_rewards_available", total_luna_rewards_available),
-    ]);
-
-    Ok(res)
-}
-
-#[allow(clippy::needless_collect)]
-pub(crate) fn convert_to_luna(
-    deps: &DepsMut,
-    balance: Vec<Coin>,
-    denom_to_keep: String,
-) -> StdResult<(Uint128, Vec<CosmosMsg<TerraMsgWrapper>>)> {
-    let terra_querier = TerraQuerier::new(&deps.querier);
-    let mut total_luna_available: Uint128 = Uint128::zero();
-
-    let denoms: Vec<String> = balance.iter().map(|item| item.denom.clone()).collect();
-    let exchange_rates = query_exchange_rates(deps, denom_to_keep.clone(), denoms)?;
-    let known_denoms: Vec<String> = exchange_rates
-        .exchange_rates
-        .iter()
-        .map(|item| item.quote_denom.clone())
-        .collect();
-    let mut msgs: Vec<CosmosMsg<TerraMsgWrapper>> = Vec::new();
-
-    for coin in balance {
-        if !known_denoms.contains(&coin.denom) {
-            continue;
-        }
-
-        if coin.denom == denom_to_keep {
-            total_luna_available += coin.amount;
-            continue;
-        }
-
-        let swap_response: SwapResponse =
-            terra_querier.query_swap(coin.clone(), denom_to_keep.as_str())?;
-        total_luna_available += swap_response.receive.amount;
-
-        msgs.push(create_swap_msg(coin, denom_to_keep.to_string()));
-    }
-
-    Ok((total_luna_available, msgs))
-}
-
-pub(crate) fn query_exchange_rates(
-    deps: &DepsMut,
-    base_denom: String,
-    quote_denoms: Vec<String>,
-) -> StdResult<ExchangeRatesResponse> {
-    let querier = TerraQuerier::new(&deps.querier);
-    let res: ExchangeRatesResponse = querier.query_exchange_rates(base_denom, quote_denoms)?;
-    Ok(res)
-}
-
 pub fn execute_dispatch_rewards(
     deps: DepsMut,
     env: Env,
@@ -226,7 +149,8 @@ pub fn execute_dispatch_rewards(
     let contr_addr = env.contract.address;
     let mut stluna_rewards = deps
         .querier
-        .query_balance(contr_addr, config.stluna_reward_denom.as_str())?;
+        .query_balance(contr_addr, config.stluna_reward_denom.clone())?;
+
     let lido_stluna_fee_amount = compute_lido_fee(stluna_rewards.amount, config.lido_fee_rate)?;
     stluna_rewards.amount = stluna_rewards.amount.checked_sub(lido_stluna_fee_amount)?;
 
@@ -238,7 +162,7 @@ pub fn execute_dispatch_rewards(
             &deps.querier,
             Coin {
                 amount: lido_stluna_fee_amount,
-                denom: stluna_rewards.denom.clone(),
+                denom: config.stluna_reward_denom.clone(),
             },
         )?;
         if !stluna_fee.amount.is_zero() {
@@ -246,7 +170,6 @@ pub fn execute_dispatch_rewards(
             fees_attrs.push(attr("lido_stluna_fee", stluna_fee.to_string()));
         }
     }
-
     let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
     if !stluna_rewards.amount.is_zero() {
         stluna_rewards = deduct_tax(&deps.querier, stluna_rewards)?;

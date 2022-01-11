@@ -15,7 +15,7 @@ use crate::contract::{execute, instantiate};
 use crate::msg::{ExecuteMsg, InstantiateMsg};
 use crate::registry::{Validator, ValidatorResponse, CONFIG, REGISTRY};
 use crate::testing::mock_querier::{mock_dependencies, WasmMockQuerier};
-use basset::hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex};
+use basset::hub::ExecuteMsg::{DispatchRewards, RedelegateProxy};
 use cosmwasm_std::testing::{mock_env, mock_info};
 use cosmwasm_std::{
     coin, coins, to_binary, Addr, Api, Coin, CosmosMsg, FullDelegation, StdError, Uint128,
@@ -296,7 +296,7 @@ fn remove_validator() {
                 }) => {
                     assert_eq!(
                         *msg.0,
-                        to_binary(&UpdateGlobalIndex {
+                        to_binary(&DispatchRewards {
                             airdrop_hooks: None
                         })
                         .unwrap()
@@ -403,7 +403,7 @@ fn remove_validator() {
                 }) => {
                     assert_eq!(
                         *msg.0,
-                        to_binary(&UpdateGlobalIndex {
+                        to_binary(&DispatchRewards {
                             airdrop_hooks: None
                         })
                         .unwrap()
@@ -493,7 +493,7 @@ fn remove_validator() {
                 }) => {
                     assert_eq!(
                         *msg.0,
-                        to_binary(&UpdateGlobalIndex {
+                        to_binary(&DispatchRewards {
                             airdrop_hooks: None
                         })
                         .unwrap()

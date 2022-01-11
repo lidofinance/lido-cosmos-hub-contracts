@@ -25,7 +25,7 @@ use cosmwasm_std::{
 use crate::common::calculate_delegations;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::registry::{Config, Validator, ValidatorResponse, CONFIG, REGISTRY};
-use basset::hub::ExecuteMsg::{RedelegateProxy, UpdateGlobalIndex};
+use basset::hub::ExecuteMsg::{DispatchRewards, RedelegateProxy};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -184,7 +184,7 @@ pub fn remove_validator(
                 funds: vec![],
             }));
 
-            let msg = UpdateGlobalIndex {
+            let msg = DispatchRewards {
                 airdrop_hooks: None,
             };
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {

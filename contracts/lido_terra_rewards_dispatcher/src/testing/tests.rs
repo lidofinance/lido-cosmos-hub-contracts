@@ -63,48 +63,12 @@ fn proper_initialization() {
 }
 
 #[test]
-fn test_swap_to_reward_denom() {
-    struct TestCase {
-        rewards_balance: Vec<Coin>,
-        expected_total_luna_rewards_available: String,
-    }
-
-    let test_cases: Vec<TestCase> = vec![TestCase {
-        rewards_balance: vec![
-            Coin::new(200, "uluna"),
-            Coin::new(32, "uusd"),
-            Coin::new(64, "usdr"),
-            Coin::new(100, "mnt"),
-        ],
-        expected_total_luna_rewards_available: "202".to_string(),
-    }];
-
-    for test_case in test_cases {
-        let mut deps = mock_dependencies(&test_case.rewards_balance);
-
-        let msg = default_init();
-        let info = mock_info("creator", &[]);
-
-        // we can just call .unwrap() to assert this was a success
-        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(0, res.messages.len());
-
-        let info = mock_info(String::from(MOCK_HUB_CONTRACT_ADDR).as_str(), &[]);
-        let msg = ExecuteMsg::SwapToRewardDenom {};
-
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        for attr in res.attributes {
-            if attr.key == *"total_luna_rewards_available" {
-                assert_eq!(attr.value, test_case.expected_total_luna_rewards_available)
-            }
-        }
-    }
-}
-
-#[test]
 fn test_dispatch_rewards() {
-    let mut deps = mock_dependencies(&[Coin::new(200, "uluna"), Coin::new(100, "uusd")]);
+    let mut deps = mock_dependencies(&[
+        Coin::new(200, "uluna"),
+        Coin::new(3200, "uusd"),
+        Coin::new(6400, "usdr"),
+    ]);
 
     let msg = default_init();
     let info = mock_info("creator", &[]);
@@ -130,7 +94,7 @@ fn test_dispatch_rewards() {
 
 #[test]
 fn test_dispatch_rewards_zero_lido_fee() {
-    let mut deps = mock_dependencies(&[Coin::new(200, "uluna"), Coin::new(100, "uusd")]);
+    let mut deps = mock_dependencies(&[Coin::new(200, "uluna"), Coin::new(320, "uusd")]);
 
     let msg = InstantiateMsg {
         hub_contract: String::from(MOCK_HUB_CONTRACT_ADDR),

@@ -19,9 +19,7 @@ use cosmwasm_std::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use terra_cosmwasm::{
-    SwapResponse, TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute,
-};
+use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
 pub const MOCK_LIDO_FEE_ADDRESS: &str = "lido_fee";
@@ -62,7 +60,6 @@ impl Querier for WasmMockQuerier {
 
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
-        let (luna_denom, usd_denom) = ("uluna", "uusd");
         match &request {
             QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
                 if &TerraRoute::Treasury == route
@@ -80,80 +77,6 @@ impl WasmMockQuerier {
                             let cap = Uint128::from(1000000u128);
                             let res = TaxCapResponse { cap };
                             QuerierResult::Ok(ContractResult::from(to_binary(&res)))
-                        }
-                        TerraQuery::ExchangeRates {
-                            base_denom,
-                            quote_denoms,
-                        } => {
-                            if base_denom == luna_denom {
-                                let mut exchange_rates: Vec<ExchangeRateItem> = Vec::new();
-                                for quote_denom in quote_denoms {
-                                    if quote_denom == "mnt" {
-                                        continue;
-                                    }
-                                    exchange_rates.push(ExchangeRateItem {
-                                        quote_denom: quote_denom.clone(),
-                                        exchange_rate: Decimal::from_ratio(
-                                            Uint128::from(32u64), // 1uluna = 32uusd
-                                            Uint128::from(1u64),
-                                        ),
-                                    })
-                                }
-                                let res = ExchangeRatesResponse {
-                                    base_denom: base_denom.to_string(),
-                                    exchange_rates,
-                                };
-                                QuerierResult::Ok(ContractResult::from(to_binary(&res)))
-                            } else if base_denom == usd_denom {
-                                let mut exchange_rates: Vec<ExchangeRateItem> = Vec::new();
-                                for quote_denom in quote_denoms {
-                                    if quote_denom == "mnt" {
-                                        continue;
-                                    }
-
-                                    exchange_rates.push(ExchangeRateItem {
-                                        quote_denom: quote_denom.clone(),
-                                        exchange_rate: Decimal::from_ratio(
-                                            Uint128::from(1u64), //1uusd = 0.03125uluna
-                                            Uint128::from(32u64),
-                                        ),
-                                    })
-                                }
-                                let res = ExchangeRatesResponse {
-                                    base_denom: base_denom.to_string(),
-                                    exchange_rates,
-                                };
-                                QuerierResult::Ok(ContractResult::from(to_binary(&res)))
-                            } else {
-                                panic!("UNSUPPORTED DENOM: {}", base_denom);
-                            }
-                        }
-                        TerraQuery::Swap {
-                            offer_coin,
-                            ask_denom,
-                        } => {
-                            if offer_coin.denom == "usdr" && ask_denom == "uusd" {
-                                QuerierResult::Ok(ContractResult::from(to_binary(&SwapResponse {
-                                    receive: Coin::new(offer_coin.amount.u128() * 2, ask_denom), // 1uusd = 2usdr
-                                })))
-                            } else if offer_coin.denom == "uluna" && ask_denom == "uusd" {
-                                QuerierResult::Ok(ContractResult::from(to_binary(&SwapResponse {
-                                    receive: Coin::new(offer_coin.amount.u128() * 32, ask_denom), //1uluna = 32uusd
-                                })))
-                            } else if offer_coin.denom == "uusd" && ask_denom == "uluna" {
-                                QuerierResult::Ok(ContractResult::from(to_binary(&SwapResponse {
-                                    receive: Coin::new(offer_coin.amount.u128() / 32, ask_denom), //1uusd = 0.03125uluna
-                                })))
-                            } else if offer_coin.denom == "usdr" && ask_denom == "uluna" {
-                                QuerierResult::Ok(ContractResult::from(to_binary(&SwapResponse {
-                                    receive: Coin::new(offer_coin.amount.u128() / 64, ask_denom), //1usdr = 0.015625uluna
-                                })))
-                            } else {
-                                panic!(
-                                    "unknown denom: offer {}, ask {}",
-                                    offer_coin.denom, ask_denom
-                                )
-                            }
                         }
                         _ => panic!("DO NOT ENTER HERE"),
                     }
