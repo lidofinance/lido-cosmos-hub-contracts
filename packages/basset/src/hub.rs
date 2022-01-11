@@ -82,7 +82,7 @@ pub enum ExecuteMsg {
 
     BondRewards {},
 
-    /// Update global index
+    /// Dispatch Rewards
     DispatchRewards {
         airdrop_hooks: Option<Vec<Binary>>,
     },

@@ -510,7 +510,7 @@ fn proper_bond_rewards() {
     assert_eq!(res, StdError::generic_err("unauthorized"));
 }
 
-/// Covers if Withdraw message, swap message, and update global index are sent.
+/// Covers if Withdraw message, swap message, and dispatch rewards are sent.
 #[test]
 pub fn proper_update_global_index() {
     let mut deps = dependencies(&[]);
