@@ -451,18 +451,11 @@ fn proper_bond_rewards() {
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
-    let delegations: [FullDelegation; 3] = [(sample_delegation(
-        DEFAULT_VALIDATOR.to_string(),
-        coin(6666, "uluna"),
-    )),
-        (sample_delegation(
-            DEFAULT_VALIDATOR2.to_string(),
-            coin(6666, "uluna"),
-        )),
-        (sample_delegation(
-            DEFAULT_VALIDATOR3.to_string(),
-            coin(6668, "uluna"),
-        ))];
+    let delegations: [FullDelegation; 3] = [
+        (sample_delegation(DEFAULT_VALIDATOR.to_string(), coin(6666, "uluna"))),
+        (sample_delegation(DEFAULT_VALIDATOR2.to_string(), coin(6666, "uluna"))),
+        (sample_delegation(DEFAULT_VALIDATOR3.to_string(), coin(6668, "uluna"))),
+    ];
 
     let validators: [Validator; 3] = [validator, validator2, validator3];
 
