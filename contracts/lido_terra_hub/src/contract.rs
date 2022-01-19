@@ -251,20 +251,18 @@ pub fn execute_dispatch_rewards(
                 StdError::generic_err("the reward contract must have been registered")
             })?)?;
 
-    if airdrop_hooks.is_some() {
+    if let Some(hooks) = airdrop_hooks {
         let registry_addr =
             deps.api
                 .addr_humanize(&config.airdrop_registry_contract.ok_or_else(|| {
                     StdError::generic_err("the airdrop registry contract must have been registered")
                 })?)?;
-        if let Some(hook) = airdrop_hooks {
-            for msg in hook {
-                messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: registry_addr.to_string(),
-                    msg,
-                    funds: vec![],
-                }))
-            }
+        for msg in hooks {
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: registry_addr.to_string(),
+                msg,
+                funds: vec![],
+            }))
         }
     }
 
