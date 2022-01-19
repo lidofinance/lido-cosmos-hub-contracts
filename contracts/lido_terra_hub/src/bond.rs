@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::contract::{query_total_stluna_issued, slashing};
+use crate::contract::{slashing};
 use crate::math::decimal_division;
 use crate::state::{CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
 use basset::hub::BondType;
@@ -73,11 +73,7 @@ pub fn execute_bond(
     let sender = info.sender.clone();
 
     // get the total supply
-    let mut total_supply = match bond_type {
-        BondType::StLuna | BondType::BondRewards => {
-            query_total_stluna_issued(deps.as_ref()).unwrap_or_default()
-        }
-    };
+    let mut total_supply = state.total_stluna_issued;
 
     // peg recovery fee should be considered
     let mint_amount = match bond_type {
