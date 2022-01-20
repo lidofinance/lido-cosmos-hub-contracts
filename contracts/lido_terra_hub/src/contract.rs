@@ -251,13 +251,13 @@ pub fn execute_dispatch_rewards(
                 StdError::generic_err("the reward contract must have been registered")
             })?)?;
 
-    if airdrop_hooks.is_some() {
+    if let Some(hooks) = airdrop_hooks {
         let registry_addr =
             deps.api
                 .addr_humanize(&config.airdrop_registry_contract.ok_or_else(|| {
                     StdError::generic_err("the airdrop registry contract must have been registered")
                 })?)?;
-        for msg in airdrop_hooks.unwrap() {
+        for msg in hooks {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: registry_addr.to_string(),
                 msg,
@@ -326,14 +326,14 @@ fn query_actual_state(deps: Deps, env: Env) -> StdResult<State> {
     }
 
     // Need total issued for updating the exchange rate
-    let stluna_total_issued = query_total_stluna_issued(deps)?;
+    state.total_stluna_issued = query_total_stluna_issued(deps)?;
     let current_batch = CURRENT_BATCH.load(deps.storage)?;
     let current_requested_stluna = current_batch.requested_stluna;
 
     if state.total_bond_stluna_amount.u128() > actual_total_bonded.u128() {
         state.total_bond_stluna_amount = actual_total_bonded;
     }
-    state.update_stluna_exchange_rate(stluna_total_issued, current_requested_stluna);
+    state.update_stluna_exchange_rate(state.total_stluna_issued, current_requested_stluna);
     Ok(state)
 }
 

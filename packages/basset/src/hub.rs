@@ -20,6 +20,9 @@ pub struct InstantiateMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct State {
+    #[serde(skip_serializing, skip_deserializing)]
+    pub total_stluna_issued: Uint128,
+
     pub stluna_exchange_rate: Decimal,
     pub total_bond_stluna_amount: Uint128,
     pub prev_hub_balance: Uint128,
