@@ -29,14 +29,13 @@ use crate::state::{
 use crate::unbond::{execute_unbond_stluna, execute_withdraw_unbonded};
 
 use crate::bond::execute_bond;
-use basset::hub::ExecuteMsg::SwapHook;
 use basset::hub::{
     AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
     InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondHistoryResponse,
     UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
-use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
+use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
 use lido_terra_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
