@@ -395,9 +395,9 @@ fn proper_bond_rewards() {
     );
 
     // register_validator
-    do_register_validator(&mut deps, validator);
-    do_register_validator(&mut deps, validator2);
-    do_register_validator(&mut deps, validator3);
+    do_register_validator(&mut deps, validator.clone());
+    do_register_validator(&mut deps, validator2.clone());
+    do_register_validator(&mut deps, validator3.clone());
 
     let bond_msg = ExecuteMsg::BondForStLuna {};
 
@@ -446,6 +446,20 @@ fn proper_bond_rewards() {
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
+
+    let delegations: [FullDelegation; 3] = [
+        (sample_delegation(DEFAULT_VALIDATOR.to_string(), coin(6666, "uluna"))),
+        (sample_delegation(DEFAULT_VALIDATOR2.to_string(), coin(6666, "uluna"))),
+        (sample_delegation(DEFAULT_VALIDATOR3.to_string(), coin(6668, "uluna"))),
+    ];
+
+    let validators: [Validator; 3] = [validator, validator2, validator3];
+
+    set_delegation_query(&mut deps.querier, &delegations, &validators);
+
+    //set bob's balance to 10 in token contract
+    deps.querier
+        .with_token_balances(&[(&stluna_token_contract, &[(&addr1, &bond_amount)])]);
 
     // get total bonded
     let state = State {};
