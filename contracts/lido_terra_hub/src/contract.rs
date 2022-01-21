@@ -54,7 +54,6 @@ pub fn instantiate(
         creator: sndr_raw,
         reward_dispatcher_contract: None,
         validators_registry_contract: None,
-        airdrop_registry_contract: None,
         stluna_token_contract: None,
     };
     CONFIG.save(deps.storage, &data)?;
@@ -109,9 +108,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::BondForStLuna {} => execute_bond(deps, env, info, BondType::StLuna),
         ExecuteMsg::BondRewards {} => execute_bond(deps, env, info, BondType::BondRewards),
-        ExecuteMsg::DispatchRewards { airdrop_hooks } => {
-            execute_dispatch_rewards(deps, env, info, airdrop_hooks)
-        }
+        ExecuteMsg::DispatchRewards {} => execute_dispatch_rewards(deps, env, info),
         ExecuteMsg::WithdrawUnbonded {} => execute_withdraw_unbonded(deps, env, info),
         ExecuteMsg::CheckSlashing {} => execute_slashing(deps, env),
         ExecuteMsg::UpdateParams {
@@ -122,7 +119,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::UpdateConfig {
             owner,
             rewards_dispatcher_contract,
-            airdrop_registry_contract,
             validators_registry_contract,
             stluna_token_contract,
         } => execute_update_config(
@@ -132,36 +128,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             owner,
             rewards_dispatcher_contract,
             stluna_token_contract,
-            airdrop_registry_contract,
             validators_registry_contract,
-        ),
-        ExecuteMsg::SwapHook {
-            airdrop_token_contract,
-            airdrop_swap_contract,
-            swap_msg,
-        } => swap_hook(
-            deps,
-            env,
-            info,
-            airdrop_token_contract,
-            airdrop_swap_contract,
-            swap_msg,
-        ),
-        ExecuteMsg::ClaimAirdrop {
-            airdrop_token_contract,
-            airdrop_contract,
-            airdrop_swap_contract,
-            claim_msg,
-            swap_msg,
-        } => claim_airdrop(
-            deps,
-            env,
-            info,
-            airdrop_token_contract,
-            airdrop_contract,
-            airdrop_swap_contract,
-            claim_msg,
-            swap_msg,
         ),
         ExecuteMsg::RedelegateProxy {
             src_validator,
@@ -240,7 +207,6 @@ pub fn execute_dispatch_rewards(
     deps: DepsMut,
     env: Env,
     _info: MessageInfo,
-    airdrop_hooks: Option<Vec<Binary>>,
 ) -> StdResult<Response> {
     let mut messages: Vec<CosmosMsg> = vec![];
 
@@ -250,21 +216,6 @@ pub fn execute_dispatch_rewards(
             .addr_humanize(&config.reward_dispatcher_contract.ok_or_else(|| {
                 StdError::generic_err("the reward contract must have been registered")
             })?)?;
-
-    if airdrop_hooks.is_some() {
-        let registry_addr =
-            deps.api
-                .addr_humanize(&config.airdrop_registry_contract.ok_or_else(|| {
-                    StdError::generic_err("the airdrop registry contract must have been registered")
-                })?)?;
-        for msg in airdrop_hooks.unwrap() {
-            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: registry_addr.to_string(),
-                msg,
-                funds: vec![],
-            }))
-        }
-    }
 
     // Send withdraw message
     let mut withdraw_msgs = withdraw_all_rewards(&deps, env.contract.address.to_string())?;
@@ -347,98 +298,6 @@ pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
     Ok(state)
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn claim_airdrop(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    airdrop_token_contract: String,
-    airdrop_contract: String,
-    airdrop_swap_contract: String,
-    claim_msg: Binary,
-    swap_msg: Binary,
-) -> StdResult<Response> {
-    let conf = CONFIG.load(deps.storage)?;
-
-    let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
-
-    let airdrop_reg_raw = if let Some(airdrop) = conf.airdrop_registry_contract {
-        airdrop
-    } else {
-        return Err(StdError::generic_err("airdrop contract must be registered"));
-    };
-
-    let airdrop_reg = deps.api.addr_humanize(&airdrop_reg_raw)?;
-
-    if airdrop_reg_raw != sender_raw {
-        return Err(StdError::generic_err(format!(
-            "Sender must be {}",
-            airdrop_reg
-        )));
-    }
-
-    let mut messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: airdrop_contract,
-        msg: claim_msg,
-        funds: vec![],
-    })];
-
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: env.contract.address.to_string(),
-        msg: to_binary(&SwapHook {
-            airdrop_token_contract,
-            airdrop_swap_contract,
-            swap_msg,
-        })?,
-        funds: vec![],
-    }));
-
-    Ok(Response::new().add_messages(messages))
-}
-
-pub fn swap_hook(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    airdrop_token_contract: String,
-    airdrop_swap_contract: String,
-    swap_msg: Binary,
-) -> StdResult<Response> {
-    if info.sender != env.contract.address {
-        return Err(StdError::generic_err("unauthorized"));
-    }
-
-    let airdrop_token_balance: BalanceResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: airdrop_token_contract.to_string(),
-            msg: to_binary(&Cw20QueryMsg::Balance {
-                address: env.contract.address.to_string(),
-            })?,
-        }))?;
-
-    if airdrop_token_balance.balance == Uint128::zero() {
-        return Err(StdError::generic_err(format!(
-            "There is no balance for {} in airdrop token contract {}",
-            &env.contract.address, &airdrop_token_contract
-        )));
-    }
-    let messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: airdrop_token_contract.clone(),
-        msg: to_binary(&Cw20ExecuteMsg::Send {
-            contract: airdrop_swap_contract,
-            amount: airdrop_token_balance.balance,
-            msg: swap_msg,
-        })?,
-        funds: vec![],
-    })];
-
-    Ok(Response::new().add_messages(messages).add_attributes(vec![
-        attr("action", "swap_airdrop_token"),
-        attr("token_contract", airdrop_token_contract),
-        attr("swap_amount", airdrop_token_balance.balance),
-    ]))
-}
-
 /// Handler for tracking slashing
 pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
     // call slashing and
@@ -474,7 +333,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let mut reward_dispatcher: Option<String> = None;
     let mut validators_contract: Option<String> = None;
     let mut stluna_token: Option<String> = None;
-    let mut airdrop: Option<String> = None;
     if config.reward_dispatcher_contract.is_some() {
         reward_dispatcher = Some(
             deps.api
@@ -496,19 +354,11 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
                 .to_string(),
         );
     }
-    if config.airdrop_registry_contract.is_some() {
-        airdrop = Some(
-            deps.api
-                .addr_humanize(&config.airdrop_registry_contract.unwrap())?
-                .to_string(),
-        );
-    }
 
     Ok(ConfigResponse {
         owner: deps.api.addr_humanize(&config.creator)?.to_string(),
         reward_dispatcher_contract: reward_dispatcher,
         validators_registry_contract: validators_contract,
-        airdrop_registry_contract: airdrop,
         stluna_token_contract: stluna_token,
     })
 }

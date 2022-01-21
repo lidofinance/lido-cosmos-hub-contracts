@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, CanonicalAddr, Coin, Decimal, Uint128};
+use cosmwasm_std::{CanonicalAddr, Coin, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -33,7 +33,6 @@ pub struct Config {
     pub reward_dispatcher_contract: Option<CanonicalAddr>,
     pub validators_registry_contract: Option<CanonicalAddr>,
     pub stluna_token_contract: Option<CanonicalAddr>,
-    pub airdrop_registry_contract: Option<CanonicalAddr>,
 }
 
 impl State {
@@ -61,7 +60,6 @@ pub enum ExecuteMsg {
         rewards_dispatcher_contract: Option<String>,
         validators_registry_contract: Option<String>,
         stluna_token_contract: Option<String>,
-        airdrop_registry_contract: Option<String>,
     },
 
     /// update the parameters that is needed for the contract
@@ -83,9 +81,7 @@ pub enum ExecuteMsg {
     BondRewards {},
 
     /// Dispatch Rewards
-    DispatchRewards {
-        airdrop_hooks: Option<Vec<Binary>>,
-    },
+    DispatchRewards {},
 
     /// Send back unbonded coin to the user
     WithdrawUnbonded {},
@@ -105,21 +101,6 @@ pub enum ExecuteMsg {
     ////////////////////
     /// internal operations
     ///////////////////
-    ClaimAirdrop {
-        airdrop_token_contract: String, // Contract address of MIR Cw20 Token
-        airdrop_contract: String,       // Contract address of MIR Airdrop
-        airdrop_swap_contract: String,  // E.g. Contract address of MIR <> UST Terraswap Pair
-        claim_msg: Binary,              // Base64-encoded JSON of MIRAirdropHandleMsg::Claim
-        swap_msg: Binary,               // Base64-encoded string of JSON of PairHandleMsg::Swap
-    },
-
-    /// Swaps claimed airdrop tokens to UST through Terraswap & sends resulting UST to Reward dispatcher contract
-    SwapHook {
-        airdrop_token_contract: String, // E.g. contract address of MIR Token
-        airdrop_swap_contract: String,  // E.g. Contract address of MIR <> UST Terraswap Pair
-        swap_msg: Binary,               // E.g. Base64-encoded JSON of PairHandleMsg::Swap
-    },
-
     RedelegateProxy {
         // delegator is automatically set to address of the calling contract
         src_validator: String,
@@ -194,7 +175,6 @@ pub struct ConfigResponse {
     pub reward_dispatcher_contract: Option<String>,
     pub validators_registry_contract: Option<String>,
     pub stluna_token_contract: Option<String>,
-    pub airdrop_registry_contract: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

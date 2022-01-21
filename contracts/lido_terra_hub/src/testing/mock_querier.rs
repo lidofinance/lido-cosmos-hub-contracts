@@ -213,9 +213,6 @@ impl WasmMockQuerier {
                             api.addr_canonicalize(&String::from("stluna_token"))
                                 .unwrap(),
                         ),
-                        airdrop_registry_contract: Some(
-                            api.addr_canonicalize(&String::from("airdrop")).unwrap(),
-                        ),
                     };
                     QuerierResult::Ok(ContractResult::from(to_binary(
                         &to_binary(&config).unwrap(),
