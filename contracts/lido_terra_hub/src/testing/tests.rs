@@ -2199,6 +2199,10 @@ pub fn proper_update_config() {
         stluna_token_contract.clone(),
     );
 
+    let config = Config {};
+    let config_query: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), config).unwrap()).unwrap();
+
     //make sure the other configs are still the same.
     assert_eq!(
         &config_query.reward_dispatcher_contract.unwrap(),
