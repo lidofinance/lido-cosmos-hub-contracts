@@ -3,7 +3,6 @@
   "title": "State",
   "type": "object",
   "required": [
-    "last_index_modification",
     "last_processed_batch",
     "last_unbonded_time",
     "prev_hub_balance",
@@ -11,11 +10,6 @@
     "total_bond_stluna_amount"
   ],
   "properties": {
-    "last_index_modification": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
     "last_processed_batch": {
       "type": "integer",
       "format": "uint64",

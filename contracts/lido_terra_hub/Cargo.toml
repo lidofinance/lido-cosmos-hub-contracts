@@ -44,7 +44,6 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6.3" }
 rand = "0.5.0"
 lido_terra_rewards_dispatcher = {path = "../lido_terra_rewards_dispatcher", features = ["library"] }
-lido_terra_airdrop_registry = {path = "../lido_terra_airdrop_registry", default-features = false, version = "1.0.0", features = ["library"]}
 basset = { path = "../../packages/basset", default-features = false, version = "0.1.0"}
 signed_integer = { path = "../../packages/signed_integers", default-features = false, version = "0.1.0"}
 lido_terra_validators_registry = {path = "../lido_terra_validators_registry", features = ["library"]}

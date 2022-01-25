@@ -788,23 +788,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lido_terra_airdrop_registry"
-version = "1.0.0"
-dependencies = [
- "basset",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cosmwasm-vm",
- "cw-storage-plus",
- "cw2",
- "cw20",
- "cw20-base",
- "schemars",
- "serde",
-]
-
-[[package]]
 name = "lido_terra_hub"
 version = "1.0.0"
 dependencies = [
@@ -817,7 +800,6 @@ dependencies = [
  "cw-storage-plus",
  "cw20",
  "cw20-base",
- "lido_terra_airdrop_registry",
  "lido_terra_rewards_dispatcher",
  "lido_terra_validators_registry",
  "rand 0.5.6",
