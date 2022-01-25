@@ -12,12 +12,6 @@
         "update_config": {
           "type": "object",
           "properties": {
-            "airdrop_registry_contract": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
             "owner": {
               "type": [
                 "string",
@@ -110,25 +104,14 @@
       "additionalProperties": false
     },
     {
-      "description": "Update global index",
+      "description": "Dispatch Rewards",
       "type": "object",
       "required": [
-        "update_global_index"
+        "dispatch_rewards"
       ],
       "properties": {
-        "update_global_index": {
-          "type": "object",
-          "properties": {
-            "airdrop_hooks": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": {
-                "$ref": "#/definitions/Binary"
-              }
-            }
-          }
+        "dispatch_rewards": {
+          "type": "object"
         }
       },
       "additionalProperties": false
@@ -174,71 +157,6 @@
     },
     {
       "description": "internal operations",
-      "type": "object",
-      "required": [
-        "claim_airdrop"
-      ],
-      "properties": {
-        "claim_airdrop": {
-          "type": "object",
-          "required": [
-            "airdrop_contract",
-            "airdrop_swap_contract",
-            "airdrop_token_contract",
-            "claim_msg",
-            "swap_msg"
-          ],
-          "properties": {
-            "airdrop_contract": {
-              "type": "string"
-            },
-            "airdrop_swap_contract": {
-              "type": "string"
-            },
-            "airdrop_token_contract": {
-              "type": "string"
-            },
-            "claim_msg": {
-              "$ref": "#/definitions/Binary"
-            },
-            "swap_msg": {
-              "$ref": "#/definitions/Binary"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Swaps claimed airdrop tokens to UST through Terraswap & sends resulting UST to Reward dispatcher contract",
-      "type": "object",
-      "required": [
-        "swap_hook"
-      ],
-      "properties": {
-        "swap_hook": {
-          "type": "object",
-          "required": [
-            "airdrop_swap_contract",
-            "airdrop_token_contract",
-            "swap_msg"
-          ],
-          "properties": {
-            "airdrop_swap_contract": {
-              "type": "string"
-            },
-            "airdrop_token_contract": {
-              "type": "string"
-            },
-            "swap_msg": {
-              "$ref": "#/definitions/Binary"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
       "type": "object",
       "required": [
         "redelegate_proxy"

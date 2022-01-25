@@ -5,18 +5,6 @@
     {
       "type": "object",
       "required": [
-        "swap_to_reward_denom"
-      ],
-      "properties": {
-        "swap_to_reward_denom": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "update_config"
       ],
       "properties": {
