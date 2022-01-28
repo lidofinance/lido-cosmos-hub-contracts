@@ -1,5 +1,5 @@
 [package]
-name = "lido_terra_token_stluna"
+name = "lido_terra_token_statom"
 version = "1.0.0"
 authors = ["pr0n00gler <pr0n00gler@yandex.ru>"]
 edition = "2018"

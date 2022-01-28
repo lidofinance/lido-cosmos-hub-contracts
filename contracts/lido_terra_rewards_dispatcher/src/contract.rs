@@ -36,7 +36,7 @@ pub fn instantiate(
     let conf = Config {
         owner: deps.api.addr_canonicalize(info.sender.as_str())?,
         hub_contract: deps.api.addr_canonicalize(&msg.hub_contract)?,
-        stluna_reward_denom: msg.stluna_reward_denom,
+        statom_reward_denom: msg.statom_reward_denom,
         lido_fee_address: deps.api.addr_canonicalize(&msg.lido_fee_address)?,
         lido_fee_rate: msg.lido_fee_rate,
     };
@@ -58,7 +58,7 @@ pub fn execute(
         ExecuteMsg::UpdateConfig {
             owner,
             hub_contract,
-            stluna_reward_denom,
+            statom_reward_denom,
             lido_fee_address,
             lido_fee_rate,
         } => execute_update_config(
@@ -67,7 +67,7 @@ pub fn execute(
             info,
             owner,
             hub_contract,
-            stluna_reward_denom,
+            statom_reward_denom,
             lido_fee_address,
             lido_fee_rate,
         ),
@@ -81,7 +81,7 @@ pub fn execute_update_config(
     info: MessageInfo,
     owner: Option<String>,
     hub_contract: Option<String>,
-    stluna_reward_denom: Option<String>,
+    statom_reward_denom: Option<String>,
     lido_fee_address: Option<String>,
     lido_fee_rate: Option<Decimal>,
 ) -> StdResult<Response<TerraMsgWrapper>> {
@@ -109,9 +109,9 @@ pub fn execute_update_config(
         })?;
     }
 
-    if let Some(_s) = stluna_reward_denom {
+    if let Some(_s) = statom_reward_denom {
         return Err(StdError::generic_err(
-            "updating stluna reward denom is forbidden",
+            "updating statom reward denom is forbidden",
         ));
     }
 
@@ -147,36 +147,36 @@ pub fn execute_dispatch_rewards(
     }
 
     let contr_addr = env.contract.address;
-    let mut stluna_rewards = deps
+    let mut statom_rewards = deps
         .querier
-        .query_balance(contr_addr, config.stluna_reward_denom.clone())?;
+        .query_balance(contr_addr, config.statom_reward_denom.clone())?;
 
-    let lido_stluna_fee_amount = compute_lido_fee(stluna_rewards.amount, config.lido_fee_rate)?;
-    stluna_rewards.amount = stluna_rewards.amount.checked_sub(lido_stluna_fee_amount)?;
+    let lido_statom_fee_amount = compute_lido_fee(statom_rewards.amount, config.lido_fee_rate)?;
+    statom_rewards.amount = statom_rewards.amount.checked_sub(lido_statom_fee_amount)?;
 
     let mut fees_attrs: Vec<Attribute> = vec![];
 
     let mut lido_fees: Vec<Coin> = vec![];
-    if !lido_stluna_fee_amount.is_zero() {
-        let stluna_fee = deduct_tax(
+    if !lido_statom_fee_amount.is_zero() {
+        let statom_fee = deduct_tax(
             &deps.querier,
             Coin {
-                amount: lido_stluna_fee_amount,
-                denom: config.stluna_reward_denom.clone(),
+                amount: lido_statom_fee_amount,
+                denom: config.statom_reward_denom.clone(),
             },
         )?;
-        if !stluna_fee.amount.is_zero() {
-            lido_fees.push(stluna_fee.clone());
-            fees_attrs.push(attr("lido_stluna_fee", stluna_fee.to_string()));
+        if !statom_fee.amount.is_zero() {
+            lido_fees.push(statom_fee.clone());
+            fees_attrs.push(attr("lido_statom_fee", statom_fee.to_string()));
         }
     }
     let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
-    if !stluna_rewards.amount.is_zero() {
-        stluna_rewards = deduct_tax(&deps.querier, stluna_rewards)?;
+    if !statom_rewards.amount.is_zero() {
+        statom_rewards = deduct_tax(&deps.querier, statom_rewards)?;
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: hub_addr.to_string(),
             msg: to_binary(&BondRewards {}).unwrap(),
-            funds: vec![stluna_rewards.clone()],
+            funds: vec![statom_rewards.clone()],
         }));
     }
     if !lido_fees.is_empty() {
@@ -196,7 +196,7 @@ pub fn execute_dispatch_rewards(
         .add_messages(messages)
         .add_attributes(vec![
             attr("action", "claim_reward"),
-            attr("stluna_rewards", stluna_rewards.to_string()),
+            attr("statom_rewards", statom_rewards.to_string()),
         ])
         .add_attributes(fees_attrs))
 }

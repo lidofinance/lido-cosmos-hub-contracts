@@ -26,7 +26,7 @@ use crate::state::{
     all_unbond_history, get_unbond_requests, query_get_finished_amount, CONFIG, CURRENT_BATCH,
     PARAMETERS, STATE,
 };
-use crate::unbond::{execute_unbond_stluna, execute_withdraw_unbonded};
+use crate::unbond::{execute_unbond_statom, execute_withdraw_unbonded};
 
 use crate::bond::execute_bond;
 use basset::hub::ExecuteMsg::SwapHook;
@@ -55,13 +55,13 @@ pub fn instantiate(
         reward_dispatcher_contract: None,
         validators_registry_contract: None,
         airdrop_registry_contract: None,
-        stluna_token_contract: None,
+        statom_token_contract: None,
     };
     CONFIG.save(deps.storage, &data)?;
 
     // store state
     let state = State {
-        stluna_exchange_rate: Decimal::one(),
+        statom_exchange_rate: Decimal::one(),
         last_unbonded_time: env.block.time.seconds(),
         last_processed_batch: 0u64,
         ..Default::default()
@@ -81,7 +81,7 @@ pub fn instantiate(
 
     let batch = CurrentBatch {
         id: 1,
-        requested_stluna: Default::default(),
+        requested_statom: Default::default(),
     };
     CURRENT_BATCH.save(deps.storage, &batch)?;
 
@@ -107,7 +107,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::BondForStLuna {} => execute_bond(deps, env, info, BondType::StLuna),
+        ExecuteMsg::BondForStAtom {} => execute_bond(deps, env, info, BondType::StAtom),
         ExecuteMsg::BondRewards {} => execute_bond(deps, env, info, BondType::BondRewards),
         ExecuteMsg::DispatchRewards { airdrop_hooks } => {
             execute_dispatch_rewards(deps, env, info, airdrop_hooks)
@@ -124,14 +124,14 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             rewards_dispatcher_contract,
             airdrop_registry_contract,
             validators_registry_contract,
-            stluna_token_contract,
+            statom_token_contract,
         } => execute_update_config(
             deps,
             env,
             info,
             owner,
             rewards_dispatcher_contract,
-            stluna_token_contract,
+            statom_token_contract,
             airdrop_registry_contract,
             validators_registry_contract,
         ),
@@ -216,18 +216,18 @@ pub fn receive_cw20(
     // only token contract can execute this message
     let conf = CONFIG.load(deps.storage)?;
 
-    let stluna_contract_addr = if let Some(st) = conf.stluna_token_contract {
+    let statom_contract_addr = if let Some(st) = conf.statom_token_contract {
         st
     } else {
         return Err(StdError::generic_err(
-            "the stLuna token contract must have been registered",
+            "the statom token contract must have been registered",
         ));
     };
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::Unbond {} => {
-            if contract_addr == stluna_contract_addr {
-                execute_unbond_stluna(deps, env, cw20_msg.amount, cw20_msg.sender)
+            if contract_addr == statom_contract_addr {
+                execute_unbond_statom(deps, env, cw20_msg.amount, cw20_msg.sender)
             } else {
                 Err(StdError::generic_err("unauthorized"))
             }
@@ -321,19 +321,19 @@ fn query_actual_state(deps: Deps, env: Env) -> StdResult<State> {
     }
 
     // Check the amount that contract thinks is bonded
-    if state.total_bond_stluna_amount.is_zero() {
+    if state.total_bond_statom_amount.is_zero() {
         return Ok(state);
     }
 
     // Need total issued for updating the exchange rate
-    let stluna_total_issued = query_total_stluna_issued(deps)?;
+    let statom_total_issued = query_total_statom_issued(deps)?;
     let current_batch = CURRENT_BATCH.load(deps.storage)?;
-    let current_requested_stluna = current_batch.requested_stluna;
+    let current_requested_statom = current_batch.requested_statom;
 
-    if state.total_bond_stluna_amount.u128() > actual_total_bonded.u128() {
-        state.total_bond_stluna_amount = actual_total_bonded;
+    if state.total_bond_statom_amount.u128() > actual_total_bonded.u128() {
+        state.total_bond_statom_amount = actual_total_bonded;
     }
-    state.update_stluna_exchange_rate(stluna_total_issued, current_requested_stluna);
+    state.update_statom_exchange_rate(statom_total_issued, current_requested_statom);
     Ok(state)
 }
 
@@ -446,8 +446,8 @@ pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
     Ok(Response::new().add_attributes(vec![
         attr("action", "check_slashing"),
         attr(
-            "new_stluna_exchange_rate",
-            state.stluna_exchange_rate.to_string(),
+            "new_statom_exchange_rate",
+            state.statom_exchange_rate.to_string(),
         ),
     ]))
 }
@@ -473,7 +473,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     let mut reward_dispatcher: Option<String> = None;
     let mut validators_contract: Option<String> = None;
-    let mut stluna_token: Option<String> = None;
+    let mut statom_token: Option<String> = None;
     let mut airdrop: Option<String> = None;
     if config.reward_dispatcher_contract.is_some() {
         reward_dispatcher = Some(
@@ -482,10 +482,10 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
                 .to_string(),
         );
     }
-    if config.stluna_token_contract.is_some() {
-        stluna_token = Some(
+    if config.statom_token_contract.is_some() {
+        statom_token = Some(
             deps.api
-                .addr_humanize(&config.stluna_token_contract.unwrap())?
+                .addr_humanize(&config.statom_token_contract.unwrap())?
                 .to_string(),
         );
     }
@@ -509,15 +509,15 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         reward_dispatcher_contract: reward_dispatcher,
         validators_registry_contract: validators_contract,
         airdrop_registry_contract: airdrop,
-        stluna_token_contract: stluna_token,
+        statom_token_contract: statom_token,
     })
 }
 
 fn query_state(deps: Deps, env: Env) -> StdResult<StateResponse> {
     let state = query_actual_state(deps, env)?;
     let res = StateResponse {
-        stluna_exchange_rate: state.stluna_exchange_rate,
-        total_bond_stluna_amount: state.total_bond_stluna_amount,
+        statom_exchange_rate: state.statom_exchange_rate,
+        total_bond_statom_amount: state.total_bond_statom_amount,
         prev_hub_balance: state.prev_hub_balance,
         last_unbonded_time: state.last_unbonded_time,
         last_processed_batch: state.last_processed_batch,
@@ -529,7 +529,7 @@ fn query_current_batch(deps: Deps) -> StdResult<CurrentBatchResponse> {
     let current_batch = CURRENT_BATCH.load(deps.storage)?;
     Ok(CurrentBatchResponse {
         id: current_batch.id,
-        requested_stluna: current_batch.requested_stluna,
+        requested_statom: current_batch.requested_statom,
     })
 }
 
@@ -552,11 +552,11 @@ fn query_params(deps: Deps) -> StdResult<Parameters> {
     PARAMETERS.load(deps.storage)
 }
 
-pub(crate) fn query_total_stluna_issued(deps: Deps) -> StdResult<Uint128> {
+pub(crate) fn query_total_statom_issued(deps: Deps) -> StdResult<Uint128> {
     let token_address = deps.api.addr_humanize(
         &CONFIG
             .load(deps.storage)?
-            .stluna_token_contract
+            .statom_token_contract
             .ok_or_else(|| StdError::generic_err("token contract must have been registered"))?,
     )?;
     let token_info: TokenInfoResponse =
@@ -585,9 +585,9 @@ fn query_unbond_requests_limitation(
             batch_id: r.batch_id,
             time: r.time,
 
-            stluna_amount: r.stluna_amount,
-            stluna_applied_exchange_rate: r.stluna_applied_exchange_rate,
-            stluna_withdraw_rate: r.stluna_withdraw_rate,
+            statom_amount: r.statom_amount,
+            statom_applied_exchange_rate: r.statom_applied_exchange_rate,
+            statom_withdraw_rate: r.statom_withdraw_rate,
 
             released: r.released,
         })

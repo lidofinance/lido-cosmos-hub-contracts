@@ -844,7 +844,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "lido_terra_token_stluna"
+name = "lido_terra_token_statom"
 version = "1.0.0"
 dependencies = [
  "basset",

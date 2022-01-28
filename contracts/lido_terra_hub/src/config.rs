@@ -60,7 +60,7 @@ pub fn execute_update_config(
     info: MessageInfo,
     owner: Option<String>,
     rewards_dispatcher_contract: Option<String>,
-    stluna_token_contract: Option<String>,
+    statom_token_contract: Option<String>,
     airdrop_registry_contract: Option<String>,
     validators_registry_contract: Option<String>,
 ) -> StdResult<Response> {
@@ -95,17 +95,17 @@ pub fn execute_update_config(
         messages.push(msg);
     }
 
-    if let Some(token) = stluna_token_contract {
+    if let Some(token) = statom_token_contract {
         let token_raw = deps.api.addr_canonicalize(&token)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            if last_config.stluna_token_contract.is_some() {
+            if last_config.statom_token_contract.is_some() {
                 return Err(StdError::generic_err(
-                    "updating stLuna token address is forbidden",
+                    "updating stAtom token address is forbidden",
                 ));
             }
 
-            last_config.stluna_token_contract = Some(token_raw);
+            last_config.statom_token_contract = Some(token_raw);
             Ok(last_config)
         })?;
     }

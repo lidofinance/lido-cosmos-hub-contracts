@@ -148,8 +148,8 @@ impl WasmMockQuerier {
                             total_supply += *balance.1;
                         }
                         let token_inf: TokenInfo = TokenInfo {
-                            name: "stluna".to_string(),
-                            symbol: "STLUNA".to_string(),
+                            name: "statom".to_string(),
+                            symbol: "STATOM".to_string(),
                             decimals: 6,
                             total_supply,
                             mint: Some(MinterData {
@@ -209,8 +209,8 @@ impl WasmMockQuerier {
                         validators_registry_contract: Some(
                             api.addr_canonicalize(&String::from("validators")).unwrap(),
                         ),
-                        stluna_token_contract: Some(
-                            api.addr_canonicalize(&String::from("stluna_token"))
+                        statom_token_contract: Some(
+                            api.addr_canonicalize(&String::from("statom_token"))
                                 .unwrap(),
                         ),
                         airdrop_registry_contract: Some(

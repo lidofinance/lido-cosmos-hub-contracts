@@ -92,7 +92,7 @@ fn calculate_newly_added_unbonded_amount(
     last_processed_batch: u64,
     historical_time: u64,
 ) -> (Uint256, u64) {
-    let mut stluna_total_unbonded_amount = Uint256::zero();
+    let mut statom_total_unbonded_amount = Uint256::zero();
     let mut batch_count: u64 = 0;
 
     // Iterate over unbonded histories that have been processed
@@ -113,16 +113,16 @@ fn calculate_newly_added_unbonded_amount(
             }
             Err(_) => break,
         }
-        let stluna_burnt_amount = Uint256::from(history.stluna_amount);
-        let stluna_historical_rate = Decimal256::from(history.stluna_withdraw_rate);
-        let stluna_unbonded_amount = stluna_burnt_amount * stluna_historical_rate;
+        let statom_burnt_amount = Uint256::from(history.statom_amount);
+        let statom_historical_rate = Decimal256::from(history.statom_withdraw_rate);
+        let statom_unbonded_amount = statom_burnt_amount * statom_historical_rate;
 
-        stluna_total_unbonded_amount += stluna_unbonded_amount;
+        statom_total_unbonded_amount += statom_unbonded_amount;
         batch_count += 1;
         i += 1;
     }
 
-    (stluna_total_unbonded_amount, batch_count)
+    (statom_total_unbonded_amount, batch_count)
 }
 
 fn calculate_new_withdraw_rate(
@@ -182,7 +182,7 @@ fn process_withdraw_rate(
 
     let last_processed_batch = state.last_processed_batch;
 
-    let (stluna_total_unbonded_amount, batch_count) =
+    let (statom_total_unbonded_amount, batch_count) =
         calculate_newly_added_unbonded_amount(deps.storage, last_processed_batch, historical_time);
 
     if batch_count < 1 {
@@ -192,8 +192,8 @@ fn process_withdraw_rate(
     let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
     let actual_unbonded_amount = balance_change.0;
 
-    let stluna_slashed_amount = SignedInt::from_subtraction(
-        stluna_total_unbonded_amount,
+    let statom_slashed_amount = SignedInt::from_subtraction(
+        statom_total_unbonded_amount,
         Uint256::from(actual_unbonded_amount),
     );
 
@@ -218,16 +218,16 @@ fn process_withdraw_rate(
         }
 
         // Calculate the new withdraw rate
-        let stluna_new_withdraw_rate = calculate_new_withdraw_rate(
-            history.stluna_amount,
-            history.stluna_withdraw_rate,
-            stluna_total_unbonded_amount,
-            stluna_slashed_amount,
+        let statom_new_withdraw_rate = calculate_new_withdraw_rate(
+            history.statom_amount,
+            history.statom_withdraw_rate,
+            statom_total_unbonded_amount,
+            statom_slashed_amount,
         );
 
         let mut history_for_i = history;
         // store the history and mark it as released
-        history_for_i.stluna_withdraw_rate = stluna_new_withdraw_rate;
+        history_for_i.statom_withdraw_rate = statom_new_withdraw_rate;
         history_for_i.released = true;
         store_unbond_history(deps.storage, iterator, history_for_i)?;
         state.last_processed_batch = iterator;
@@ -274,8 +274,8 @@ fn pick_validator(deps: &DepsMut, claim: Uint128, delegator: String) -> StdResul
 }
 
 /// This message must be call by receive_cw20
-/// This message will undelegate coin and burn stLuna tokens
-pub(crate) fn execute_unbond_stluna(
+/// This message will undelegate coin and burn stAtom tokens
+pub(crate) fn execute_unbond_statom(
     mut deps: DepsMut,
     env: Env,
     amount: Uint128,
@@ -291,14 +291,14 @@ pub(crate) fn execute_unbond_stluna(
     let mut state = slashing(&mut deps, env.clone())?;
 
     // Collect all the requests within a epoch period
-    current_batch.requested_stluna += amount;
+    current_batch.requested_statom += amount;
 
     store_unbond_wait_list(
         deps.storage,
         current_batch.id,
         sender.clone(),
         amount,
-        UnbondType::StLuna,
+        UnbondType::StAtom,
     )?;
 
     let current_time = env.block.time.seconds();
@@ -323,7 +323,7 @@ pub(crate) fn execute_unbond_stluna(
     let config = CONFIG.load(deps.storage)?;
     let token_address =
         deps.api
-            .addr_humanize(&config.stluna_token_contract.ok_or_else(|| {
+            .addr_humanize(&config.statom_token_contract.ok_or_else(|| {
                 StdError::generic_err("the token contract must have been registered")
             })?)?;
 
@@ -350,23 +350,23 @@ fn process_undelegations(
     state: &mut State,
 ) -> StdResult<Vec<CosmosMsg>> {
     // Apply the current exchange rate.
-    let stluna_undelegation_amount = current_batch.requested_stluna * state.stluna_exchange_rate;
+    let statom_undelegation_amount = current_batch.requested_statom * state.statom_exchange_rate;
     let delegator = env.contract.address;
 
     // Send undelegated requests to possibly more than one validators
-    let undelegated_msgs = pick_validator(deps, stluna_undelegation_amount, delegator.to_string())?;
+    let undelegated_msgs = pick_validator(deps, statom_undelegation_amount, delegator.to_string())?;
 
-    state.total_bond_stluna_amount = state
-        .total_bond_stluna_amount
-        .checked_sub(stluna_undelegation_amount)?;
+    state.total_bond_statom_amount = state
+        .total_bond_statom_amount
+        .checked_sub(statom_undelegation_amount)?;
 
     // Store history for withdraw unbonded
     let history = UnbondHistory {
         batch_id: current_batch.id,
         time: env.block.time.seconds(),
-        stluna_amount: current_batch.requested_stluna,
-        stluna_applied_exchange_rate: state.stluna_exchange_rate,
-        stluna_withdraw_rate: state.stluna_exchange_rate,
+        statom_amount: current_batch.requested_statom,
+        statom_applied_exchange_rate: state.statom_exchange_rate,
+        statom_withdraw_rate: state.statom_exchange_rate,
 
         released: false,
     };
@@ -374,7 +374,7 @@ fn process_undelegations(
     store_unbond_history(deps.storage, current_batch.id, history)?;
     // batch info must be updated to new batch
     current_batch.id += 1;
-    current_batch.requested_stluna = Uint128::zero();
+    current_batch.requested_statom = Uint128::zero();
 
     // state.last_unbonded_time must be updated to the current block time
     state.last_unbonded_time = env.block.time.seconds();

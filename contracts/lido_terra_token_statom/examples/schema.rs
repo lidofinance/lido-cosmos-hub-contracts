@@ -22,7 +22,7 @@ use cw20::{
     TokenInfoResponse,
 };
 use cw20_base::msg::{ExecuteMsg, QueryMsg};
-use lido_terra_token_stluna::msg::TokenInitMsg;
+use lido_terra_token_statom::msg::TokenInitMsg;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

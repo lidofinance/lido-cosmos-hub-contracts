@@ -25,7 +25,7 @@ pub static CONFIG: Item<Config> = Item::new("config");
 pub struct Config {
     pub owner: CanonicalAddr,
     pub hub_contract: CanonicalAddr,
-    pub stluna_reward_denom: String,
+    pub statom_reward_denom: String,
     pub lido_fee_address: CanonicalAddr,
     pub lido_fee_rate: Decimal,
 }

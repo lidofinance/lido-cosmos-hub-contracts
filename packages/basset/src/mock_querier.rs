@@ -121,8 +121,8 @@ impl WasmMockQuerier {
                         airdrop_registry_contract: Some(
                             api.addr_canonicalize(&String::from("airdrop")).unwrap(),
                         ),
-                        stluna_token_contract: Some(
-                            api.addr_canonicalize(&String::from("stluna_token"))
+                        statom_token_contract: Some(
+                            api.addr_canonicalize(&String::from("statom_token"))
                                 .unwrap(),
                         ),
                     };

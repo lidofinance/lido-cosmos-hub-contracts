@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::contract::{query_total_stluna_issued, slashing};
+use crate::contract::{query_total_statom_issued, slashing};
 use crate::math::decimal_division;
 use crate::state::{CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
 use basset::hub::BondType;
@@ -48,7 +48,7 @@ pub fn execute_bond(
     // current batch requested fee is need for accurate exchange rate computation.
     let current_batch = CURRENT_BATCH.load(deps.storage)?;
     let requested_with_fee = match bond_type {
-        BondType::StLuna | BondType::BondRewards => current_batch.requested_stluna,
+        BondType::StAtom | BondType::BondRewards => current_batch.requested_statom,
     };
 
     // coin must have be sent along with transaction and it should be in underlying coin denom
@@ -74,14 +74,14 @@ pub fn execute_bond(
 
     // get the total supply
     let mut total_supply = match bond_type {
-        BondType::StLuna | BondType::BondRewards => {
-            query_total_stluna_issued(deps.as_ref()).unwrap_or_default()
+        BondType::StAtom | BondType::BondRewards => {
+            query_total_statom_issued(deps.as_ref()).unwrap_or_default()
         }
     };
 
     // peg recovery fee should be considered
     let mint_amount = match bond_type {
-        BondType::StLuna => decimal_division(payment.amount, state.stluna_exchange_rate),
+        BondType::StAtom => decimal_division(payment.amount, state.statom_exchange_rate),
         BondType::BondRewards => Uint128::zero(),
     };
 
@@ -92,12 +92,12 @@ pub fn execute_bond(
     STATE.update(deps.storage, |mut prev_state| -> StdResult<_> {
         match bond_type {
             BondType::BondRewards => {
-                prev_state.total_bond_stluna_amount += payment.amount;
-                prev_state.update_stluna_exchange_rate(total_supply, requested_with_fee);
+                prev_state.total_bond_statom_amount += payment.amount;
+                prev_state.update_statom_exchange_rate(total_supply, requested_with_fee);
                 Ok(prev_state)
             }
-            BondType::StLuna => {
-                prev_state.total_bond_stluna_amount += payment.amount;
+            BondType::StAtom => {
+                prev_state.total_bond_statom_amount += payment.amount;
                 Ok(prev_state)
             }
         }
@@ -137,7 +137,7 @@ pub fn execute_bond(
         }));
     }
 
-    //we don't need to mint stLuna when bonding rewards
+    //we don't need to mint stAtom when bonding rewards
     if bond_type == BondType::BondRewards {
         let res = Response::new()
             .add_messages(external_call_msgs)
@@ -155,9 +155,9 @@ pub fn execute_bond(
     };
 
     let token_address = match bond_type {
-        BondType::StLuna => deps
+        BondType::StAtom => deps
             .api
-            .addr_humanize(&config.stluna_token_contract.ok_or_else(|| {
+            .addr_humanize(&config.statom_token_contract.ok_or_else(|| {
                 StdError::generic_err("the token contract must have been registered")
             })?)?,
         BondType::BondRewards => {
