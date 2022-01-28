@@ -61,7 +61,6 @@ pub fn execute_update_config(
     owner: Option<String>,
     rewards_dispatcher_contract: Option<String>,
     statom_token_contract: Option<String>,
-    airdrop_registry_contract: Option<String>,
     validators_registry_contract: Option<String>,
 ) -> StdResult<Response> {
     // only owner must be able to send this message.
@@ -106,14 +105,6 @@ pub fn execute_update_config(
             }
 
             last_config.statom_token_contract = Some(token_raw);
-            Ok(last_config)
-        })?;
-    }
-
-    if let Some(airdrop) = airdrop_registry_contract {
-        let airdrop_raw = deps.api.addr_canonicalize(&airdrop)?;
-        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            last_config.airdrop_registry_contract = Some(airdrop_raw);
             Ok(last_config)
         })?;
     }

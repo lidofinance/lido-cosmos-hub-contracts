@@ -29,7 +29,6 @@ pub const STATE: Item<State> = Item::new("\u{0}\u{5}state");
 
 pub static NEW_PREFIX_WAIT_MAP: &[u8] = b"wait";
 pub static UNBOND_HISTORY_MAP: &[u8] = b"history_map";
-pub static PREFIX_AIRDROP_INFO: &[u8] = b"airedrop_info";
 
 pub const MAX_DEFAULT_RANGE_LIMIT: u32 = 1000;
 
