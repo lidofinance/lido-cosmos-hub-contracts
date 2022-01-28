@@ -6,8 +6,8 @@
     "last_processed_batch",
     "last_unbonded_time",
     "prev_hub_balance",
-    "stluna_exchange_rate",
-    "total_bond_stluna_amount"
+    "statom_exchange_rate",
+    "total_bond_statom_amount"
   ],
   "properties": {
     "last_processed_batch": {
@@ -23,10 +23,10 @@
     "prev_hub_balance": {
       "$ref": "#/definitions/Uint128"
     },
-    "stluna_exchange_rate": {
+    "statom_exchange_rate": {
       "$ref": "#/definitions/Decimal"
     },
-    "total_bond_stluna_amount": {
+    "total_bond_statom_amount": {
       "$ref": "#/definitions/Uint128"
     }
   },

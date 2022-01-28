@@ -24,7 +24,7 @@
                 "null"
               ]
             },
-            "stluna_token_contract": {
+            "statom_token_contract": {
               "type": [
                 "string",
                 "null"
@@ -82,10 +82,10 @@
       "description": "User's operations Receives `amount` in underlying coin denom from sender. Delegate `amount` equally between validators from the registry. Issue `amount` / exchange_rate for the user.",
       "type": "object",
       "required": [
-        "bond_for_st_luna"
+        "bond_for_st_atom"
       ],
       "properties": {
-        "bond_for_st_luna": {
+        "bond_for_st_atom": {
           "type": "object"
         }
       },
