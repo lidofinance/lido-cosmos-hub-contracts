@@ -208,7 +208,7 @@ fn remove_validator() {
                 hub_contract_address.clone(),
                 validator1.address.clone(),
                 Coin {
-                    denom: "uluna".to_string(),
+                    denom: "uatom".to_string(),
                     amount: Uint128::from(10u64),
                 },
             ),
@@ -216,7 +216,7 @@ fn remove_validator() {
                 hub_contract_address.clone(),
                 validator2.address.clone(),
                 Coin {
-                    denom: "uluna".to_string(),
+                    denom: "uatom".to_string(),
                     amount: Uint128::from(20u64),
                 },
             ),
@@ -224,7 +224,7 @@ fn remove_validator() {
                 hub_contract_address.clone(),
                 validator3.address.clone(),
                 Coin {
-                    denom: "uluna".to_string(),
+                    denom: "uatom".to_string(),
                     amount: Uint128::from(30u64),
                 },
             ),
@@ -232,7 +232,7 @@ fn remove_validator() {
                 hub_contract_address.clone(),
                 validator4.address.clone(),
                 Coin {
-                    denom: "uluna".to_string(),
+                    denom: "uatom".to_string(),
                     amount: Uint128::from(50u64),
                 },
             ),
@@ -274,9 +274,9 @@ fn remove_validator() {
                         to_binary(&RedelegateProxy {
                             src_validator: validator4.address,
                             redelegations: vec![
-                                (validator1.clone().address, coin(27, "uluna")),
-                                (validator2.clone().address, coin(17, "uluna")),
-                                (validator3.clone().address, coin(6, "uluna"))
+                                (validator1.clone().address, coin(27, "uatom")),
+                                (validator2.clone().address, coin(17, "uatom")),
+                                (validator3.clone().address, coin(6, "uatom"))
                             ]
                         })
                         .unwrap()
@@ -331,7 +331,7 @@ fn remove_validator() {
                 hub_contract_address.clone(),
                 validator1.address.clone(),
                 Coin {
-                    denom: "uluna".to_string(),
+                    denom: "uatom".to_string(),
                     amount: Uint128::from(37u64),
                 },
             ),
@@ -339,7 +339,7 @@ fn remove_validator() {
                 hub_contract_address.clone(),
                 validator2.address.clone(),
                 Coin {
-                    denom: "uluna".to_string(),
+                    denom: "uatom".to_string(),
                     amount: Uint128::from(37u64),
                 },
             ),
@@ -347,7 +347,7 @@ fn remove_validator() {
                 hub_contract_address.clone(),
                 validator3.address.clone(),
                 Coin {
-                    denom: "uluna".to_string(),
+                    denom: "uatom".to_string(),
                     amount: Uint128::from(36u64),
                 },
             ),
@@ -375,8 +375,8 @@ fn remove_validator() {
                         to_binary(&RedelegateProxy {
                             src_validator: validator3.address,
                             redelegations: vec![
-                                (validator1.clone().address, coin(18, "uluna")),
-                                (validator2.clone().address, coin(18, "uluna"))
+                                (validator1.clone().address, coin(18, "uatom")),
+                                (validator2.clone().address, coin(18, "uatom"))
                             ]
                         })
                         .unwrap()
@@ -425,7 +425,7 @@ fn remove_validator() {
                 hub_contract_address.clone(),
                 validator1.address.clone(),
                 Coin {
-                    denom: "uluna".to_string(),
+                    denom: "uatom".to_string(),
                     amount: Uint128::from(55u64),
                 },
             ),
@@ -433,7 +433,7 @@ fn remove_validator() {
                 hub_contract_address.clone(),
                 validator2.address.clone(),
                 Coin {
-                    denom: "uluna".to_string(),
+                    denom: "uatom".to_string(),
                     amount: Uint128::from(55u64),
                 },
             ),
@@ -460,7 +460,7 @@ fn remove_validator() {
                         *msg.0,
                         to_binary(&RedelegateProxy {
                             src_validator: validator2.address.clone(),
-                            redelegations: vec![(validator1.clone().address, coin(55, "uluna"))],
+                            redelegations: vec![(validator1.clone().address, coin(55, "uatom"))],
                         })
                         .unwrap()
                         .0
@@ -499,7 +499,7 @@ fn remove_validator() {
             hub_contract_address.clone(),
             validator1.address.clone(),
             Coin {
-                denom: "uluna".to_string(),
+                denom: "uatom".to_string(),
                 amount: Uint128::from(110u64),
             },
         )],
@@ -536,15 +536,15 @@ fn remove_validator() {
                 validator: validator1.address.clone(),
                 delegator: hub_contract_address.clone(),
                 amount: Coin {
-                    denom: "uluna".to_string(),
+                    denom: "uatom".to_string(),
                     amount: Uint128::from(110u64),
                 },
                 can_redelegate: Coin {
-                    denom: "uluna".to_string(),
+                    denom: "uatom".to_string(),
                     amount: Uint128::from(0u64),
                 },
                 accumulated_rewards: vec![Coin {
-                    denom: "uluna".to_string(),
+                    denom: "uatom".to_string(),
                     amount: Uint128::from(110u64),
                 }],
             },
@@ -552,7 +552,7 @@ fn remove_validator() {
                 hub_contract_address.clone(),
                 validator2.address.clone(),
                 Coin {
-                    denom: "uluna".to_string(),
+                    denom: "uatom".to_string(),
                     amount: Uint128::from(110u64),
                 },
             ),
@@ -754,7 +754,7 @@ fn set_delegation_query(
     delegate: &[FullDelegation],
     validators: &[CosmosValidator],
 ) {
-    querier.update_staking("uluna", validators, delegate);
+    querier.update_staking("uatom", validators, delegate);
 }
 
 fn sample_delegation(delegator: Addr, addr: String, amount: Coin) -> FullDelegation {

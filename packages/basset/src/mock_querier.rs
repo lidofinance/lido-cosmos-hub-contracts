@@ -131,11 +131,11 @@ impl WasmMockQuerier {
             QueryRequest::Bank(BankQuery::AllBalances { address }) => {
                 if address == &String::from("reward") {
                     let mut coins: Vec<Coin> = vec![];
-                    let luna = Coin {
-                        denom: "uluna".to_string(),
+                    let atom = Coin {
+                        denom: "uatom".to_string(),
                         amount: Uint128::new(1000u128),
                     };
-                    coins.push(luna);
+                    coins.push(atom);
                     let krt = Coin {
                         denom: "ukrt".to_string(),
                         amount: Uint128::new(1000u128),

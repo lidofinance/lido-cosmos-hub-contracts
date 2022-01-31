@@ -86,7 +86,7 @@ fn sample_validator<U: Into<String>>(addr: U) -> Validator {
 
 fn set_validator_mock(querier: &mut WasmMockQuerier) {
     querier.update_staking(
-        "uluna",
+        "uatom",
         &[
             sample_validator(DEFAULT_VALIDATOR),
             sample_validator(DEFAULT_VALIDATOR2),
@@ -104,7 +104,7 @@ pub fn initialize<S: Storage, A: Api, Q: Querier>(
 ) {
     let msg = InstantiateMsg {
         epoch_period: 30,
-        underlying_coin_denom: "uluna".to_string(),
+        underlying_coin_denom: "uatom".to_string(),
         unbonding_period: 2,
     };
 
@@ -146,7 +146,7 @@ pub fn do_bond_statom(
 
     let bond = ExecuteMsg::BondForStAtom {};
 
-    let info = mock_info(&addr, &[coin(amount.u128(), "uluna")]);
+    let info = mock_info(&addr, &[coin(amount.u128(), "uatom")]);
     let res = execute(deps.as_mut(), mock_env(), info, bond).unwrap();
     assert_eq!(validators.len() + 1, res.messages.len());
 }
@@ -181,7 +181,7 @@ fn proper_initialization() {
     // successful call
     let msg = InstantiateMsg {
         epoch_period: 30,
-        underlying_coin_denom: "uluna".to_string(),
+        underlying_coin_denom: "uatom".to_string(),
         unbonding_period: 210,
     };
 
@@ -198,7 +198,7 @@ fn proper_initialization() {
     let query_params: Parameters =
         from_binary(&query(deps.as_ref(), mock_env(), params).unwrap()).unwrap();
     assert_eq!(query_params.epoch_period, 30);
-    assert_eq!(query_params.underlying_coin_denom, "uluna");
+    assert_eq!(query_params.underlying_coin_denom, "uatom");
     assert_eq!(query_params.unbonding_period, 210);
 
     // state storage must be initialized
@@ -241,7 +241,7 @@ fn proper_initialization() {
 }
 
 #[test]
-fn proper_bond_for_st_luna() {
+fn proper_bond_for_st_atom() {
     let mut deps = dependencies(&[]);
 
     let validator = sample_validator(DEFAULT_VALIDATOR);
@@ -270,7 +270,7 @@ fn proper_bond_for_st_luna() {
 
     let bond_msg = ExecuteMsg::BondForStAtom {};
 
-    let info = mock_info(&addr1, &[coin(bond_amount.u128(), "uluna")]);
+    let info = mock_info(&addr1, &[coin(bond_amount.u128(), "uatom")]);
 
     let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(4, res.messages.len());
@@ -283,7 +283,7 @@ fn proper_bond_for_st_luna() {
     match delegate.msg.clone() {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, coin(3334, "uluna"));
+            assert_eq!(amount, coin(3334, "uatom"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
@@ -292,7 +292,7 @@ fn proper_bond_for_st_luna() {
     match delegate.msg.clone() {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR2);
-            assert_eq!(amount, coin(3333, "uluna"));
+            assert_eq!(amount, coin(3333, "uatom"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
@@ -301,7 +301,7 @@ fn proper_bond_for_st_luna() {
     match delegate.msg.clone() {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR3);
-            assert_eq!(amount, coin(3333, "uluna"));
+            assert_eq!(amount, coin(3333, "uatom"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
@@ -341,10 +341,10 @@ fn proper_bond_for_st_luna() {
     let res = execute(deps.as_mut(), mock_env(), info, failed_bond);
     assert_eq!(
         res.unwrap_err(),
-        StdError::generic_err("No uluna assets are provided to bond")
+        StdError::generic_err("No uatom assets are provided to bond")
     );
 
-    //send other tokens than luna funds
+    //send other tokens than atom funds
     let bob = String::from("bob");
     let failed_bond = ExecuteMsg::BondForStAtom {};
 
@@ -352,14 +352,14 @@ fn proper_bond_for_st_luna() {
     let res = execute(deps.as_mut(), mock_env(), info, failed_bond.clone());
     assert_eq!(
         res.unwrap_err(),
-        StdError::generic_err("No uluna assets are provided to bond")
+        StdError::generic_err("No uatom assets are provided to bond")
     );
 
     //bond with more than one coin is not possible
     let info = mock_info(
         &addr1,
         &[
-            coin(bond_amount.u128(), "uluna"),
+            coin(bond_amount.u128(), "uatom"),
             coin(bond_amount.u128(), "uusd"),
         ],
     );
@@ -401,7 +401,7 @@ fn proper_bond_rewards() {
 
     let bond_msg = ExecuteMsg::BondForStAtom {};
 
-    let info = mock_info(&addr1, &[coin(bond_amount.u128(), "uluna")]);
+    let info = mock_info(&addr1, &[coin(bond_amount.u128(), "uatom")]);
 
     let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(4, res.messages.len());
@@ -414,7 +414,7 @@ fn proper_bond_rewards() {
 
     let info = mock_info(
         &reward_dispatcher_contract,
-        &[coin(bond_amount.u128(), "uluna")],
+        &[coin(bond_amount.u128(), "uatom")],
     );
 
     let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
@@ -424,7 +424,7 @@ fn proper_bond_rewards() {
     match delegate.msg.clone() {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, coin(3334, "uluna"));
+            assert_eq!(amount, coin(3334, "uatom"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
@@ -433,7 +433,7 @@ fn proper_bond_rewards() {
     match delegate.msg.clone() {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR2);
-            assert_eq!(amount, coin(3333, "uluna"));
+            assert_eq!(amount, coin(3333, "uatom"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
@@ -442,15 +442,15 @@ fn proper_bond_rewards() {
     match delegate.msg.clone() {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR3);
-            assert_eq!(amount, coin(3333, "uluna"));
+            assert_eq!(amount, coin(3333, "uatom"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
     let delegations: [FullDelegation; 3] = [
-        (sample_delegation(DEFAULT_VALIDATOR.to_string(), coin(6666, "uluna"))),
-        (sample_delegation(DEFAULT_VALIDATOR2.to_string(), coin(6666, "uluna"))),
-        (sample_delegation(DEFAULT_VALIDATOR3.to_string(), coin(6668, "uluna"))),
+        (sample_delegation(DEFAULT_VALIDATOR.to_string(), coin(6666, "uatom"))),
+        (sample_delegation(DEFAULT_VALIDATOR2.to_string(), coin(6666, "uatom"))),
+        (sample_delegation(DEFAULT_VALIDATOR3.to_string(), coin(6668, "uatom"))),
     ];
 
     let validators: [Validator; 3] = [validator, validator2, validator3];
@@ -481,24 +481,24 @@ fn proper_bond_rewards() {
     let res = execute(deps.as_mut(), mock_env(), info, failed_bond);
     assert_eq!(
         res.unwrap_err(),
-        StdError::generic_err("No uluna assets are provided to bond")
+        StdError::generic_err("No uatom assets are provided to bond")
     );
 
-    //send other tokens than luna funds
+    //send other tokens than atom funds
     let failed_bond = ExecuteMsg::BondRewards {};
 
     let info = mock_info(&reward_dispatcher_contract, &[coin(10, "ukrt")]);
     let res = execute(deps.as_mut(), mock_env(), info, failed_bond.clone());
     assert_eq!(
         res.unwrap_err(),
-        StdError::generic_err("No uluna assets are provided to bond")
+        StdError::generic_err("No uatom assets are provided to bond")
     );
 
     //bond with more than one coin is not possible
     let info = mock_info(
         &reward_dispatcher_contract,
         &[
-            coin(bond_amount.u128(), "uluna"),
+            coin(bond_amount.u128(), "uatom"),
             coin(bond_amount.u128(), "uusd"),
         ],
     );
@@ -512,7 +512,7 @@ fn proper_bond_rewards() {
     //bond from non-dispatcher address
     let info = mock_info(
         &String::from("random_address"),
-        &[coin(bond_amount.u128(), "uluna")],
+        &[coin(bond_amount.u128(), "uatom")],
     );
     let failed_bond = ExecuteMsg::BondRewards {};
 
@@ -564,7 +564,7 @@ pub fn proper_update_global_index() {
     //set delegation for query-all-delegation
     let delegations: [FullDelegation; 1] = [(sample_delegation(
         validator.address.clone(),
-        coin(bond_amount.u128() * 2, "uluna"),
+        coin(bond_amount.u128() * 2, "uatom"),
     ))];
 
     let validators: [Validator; 1] = [(validator.clone())];
@@ -645,8 +645,8 @@ pub fn proper_update_global_index_two_validators() {
 
     //set delegation for query-all-delegation
     let delegations: [FullDelegation; 2] = [
-        (sample_delegation(validator.address.clone(), coin(10, "uluna"))),
-        (sample_delegation(validator2.address.clone(), coin(10, "uluna"))),
+        (sample_delegation(validator.address.clone(), coin(10, "uatom"))),
+        (sample_delegation(validator2.address.clone(), coin(10, "uatom"))),
     ];
 
     let validators: [Validator; 2] = [(validator.clone()), (validator2.clone())];
@@ -717,7 +717,7 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
 
     //set delegation for query-all-delegation
     let delegations: [FullDelegation; 1] =
-        [(sample_delegation(validator.address.clone(), coin(10, "uluna")))];
+        [(sample_delegation(validator.address.clone(), coin(10, "uatom")))];
 
     let validators: [Validator; 1] = [(validator.clone())];
     set_delegation_query(&mut deps.querier, &delegations, &validators);
@@ -771,7 +771,7 @@ pub fn proper_receive_statom() {
 
     // bond to the second validator
     do_bond_statom(&mut deps, addr1.clone(), Uint128::from(10u64));
-    set_delegation(&mut deps.querier, validator, 10, "uluna");
+    set_delegation(&mut deps.querier, validator, 10, "uatom");
 
     //set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
@@ -861,7 +861,7 @@ pub fn proper_unbond_statom() {
     let bob = String::from("bob");
     let bond = ExecuteMsg::BondForStAtom {};
 
-    let info = mock_info(&bob, &[coin(10, "uluna")]);
+    let info = mock_info(&bob, &[coin(10, "uatom")]);
 
     let res = execute(deps.as_mut(), mock_env(), info, bond).unwrap();
     assert_eq!(2, res.messages.len());
@@ -870,7 +870,7 @@ pub fn proper_unbond_statom() {
     match delegate.msg.clone() {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, coin(10, "uluna"));
+            assert_eq!(amount, coin(10, "uatom"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
@@ -879,7 +879,7 @@ pub fn proper_unbond_statom() {
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&bob, &Uint128::from(10u128))])]);
 
-    set_delegation(&mut deps.querier, validator.clone(), 10, "uluna");
+    set_delegation(&mut deps.querier, validator.clone(), 10, "uatom");
 
     //check the current batch before unbond
     let current_batch = CurrentBatch {};
@@ -992,7 +992,7 @@ pub fn proper_unbond_statom() {
     //making sure the sent message (2nd) is undelegate
     let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
         validator: validator.address,
-        amount: coin(8, "uluna"),
+        amount: coin(8, "uatom"),
     });
     assert_eq!(res.messages[0].msg, msgs);
 
@@ -1071,9 +1071,9 @@ pub fn proper_pick_validator() {
 
     // give validators different delegation amount
     let delegations: [FullDelegation; 3] = [
-        (sample_delegation(validator.address.clone(), coin(10, "uluna"))),
-        (sample_delegation(validator2.address.clone(), coin(150, "uluna"))),
-        (sample_delegation(validator3.address.clone(), coin(200, "uluna"))),
+        (sample_delegation(validator.address.clone(), coin(10, "uatom"))),
+        (sample_delegation(validator2.address.clone(), coin(150, "uatom"))),
+        (sample_delegation(validator3.address.clone(), coin(200, "uatom"))),
     ];
 
     let validators: [Validator; 3] = [(validator), (validator2.clone()), (validator3.clone())];
@@ -1191,8 +1191,8 @@ pub fn proper_pick_validator_respect_distributed_delegation() {
 
     // give validators different delegation amount
     let delegations: [FullDelegation; 2] = [
-        (sample_delegation(validator.address.clone(), coin(1000, "uluna"))),
-        (sample_delegation(validator2.address.clone(), coin(1500, "uluna"))),
+        (sample_delegation(validator.address.clone(), coin(1000, "uatom"))),
+        (sample_delegation(validator2.address.clone(), coin(1500, "uatom"))),
     ];
 
     let validators: [Validator; 2] = [(validator), (validator2)];
@@ -1263,7 +1263,7 @@ pub fn proper_slashing_statom() {
     ]);
 
     // slashing
-    set_delegation(&mut deps.querier, validator.clone(), 900, "uluna");
+    set_delegation(&mut deps.querier, validator.clone(), 900, "uatom");
 
     let info = mock_info(&addr1, &[]);
     let report_slashing = CheckSlashing {};
@@ -1278,7 +1278,7 @@ pub fn proper_slashing_statom() {
     //bond again to see the update exchange rate
     let second_bond = ExecuteMsg::BondForStAtom {};
 
-    let info = mock_info(&addr1, &[coin(900, "uluna")]);
+    let info = mock_info(&addr1, &[coin(900, "uatom")]);
 
     let res = execute(deps.as_mut(), mock_env(), info.clone(), second_bond).unwrap();
     assert_eq!(2, res.messages.len());
@@ -1296,7 +1296,7 @@ pub fn proper_slashing_statom() {
     match delegate.msg.clone() {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, coin(900, "uluna"));
+            assert_eq!(amount, coin(900, "uatom"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
@@ -1321,7 +1321,7 @@ pub fn proper_slashing_statom() {
         _ => panic!("Unexpected message: {:?}", message),
     }
 
-    set_delegation(&mut deps.querier, validator.clone(), 1800, "uluna");
+    set_delegation(&mut deps.querier, validator.clone(), 1800, "uatom");
 
     //update user balance
     deps.querier.with_token_balances(&[
@@ -1360,7 +1360,7 @@ pub fn proper_slashing_statom() {
     .unwrap();
     let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
         validator: validator.address,
-        amount: coin(900, "uluna"),
+        amount: coin(900, "uatom"),
     });
     assert_eq!(res.messages[0].msg, msgs);
 
@@ -1372,7 +1372,7 @@ pub fn proper_slashing_statom() {
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
-            denom: "uluna".to_string(),
+            denom: "uatom".to_string(),
             amount: Uint128::from(900u64),
         },
     )]);
@@ -1437,7 +1437,7 @@ pub fn proper_withdraw_unbonded_statom() {
     let bob = String::from("bob");
     let bond_msg = ExecuteMsg::BondForStAtom {};
 
-    let info = mock_info(&bob, &[coin(100, "uluna")]);
+    let info = mock_info(&bob, &[coin(100, "uatom")]);
 
     let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
@@ -1452,19 +1452,19 @@ pub fn proper_withdraw_unbonded_statom() {
     match delegate.msg.clone() {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, coin(100, "uluna"));
+            assert_eq!(amount, coin(100, "uatom"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
     let bond_msg = ExecuteMsg::BondRewards {};
 
-    let info = mock_info(&String::from("reward"), &[coin(100, "uluna")]);
+    let info = mock_info(&String::from("reward"), &[coin(100, "uatom")]);
 
     let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(1, res.messages.len());
 
-    set_delegation(&mut deps.querier, validator, 200, "uluna");
+    set_delegation(&mut deps.querier, validator, 200, "uatom");
 
     let res = execute_unbond_statom(deps.as_mut(), mock_env(), Uint128::from(10u64), bob.clone())
         .unwrap();
@@ -1478,7 +1478,7 @@ pub fn proper_withdraw_unbonded_statom() {
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
-            denom: "uluna".to_string(),
+            denom: "uatom".to_string(),
             amount: Uint128::from(0u64),
         },
     )]);
@@ -1500,7 +1500,7 @@ pub fn proper_withdraw_unbonded_statom() {
     assert!(wdraw_unbonded_res.is_err(), "unbonded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
-        StdError::generic_err("No withdrawable uluna assets are available yet")
+        StdError::generic_err("No withdrawable uatom assets are available yet")
     );
 
     let res = execute_unbond_statom(
@@ -1539,7 +1539,7 @@ pub fn proper_withdraw_unbonded_statom() {
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
-            denom: "uluna".to_string(),
+            denom: "uatom".to_string(),
             amount: Uint128::from(40u64),
         },
     )]);
@@ -1642,7 +1642,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_statom() {
     let bob = String::from("bob");
     let bond_msg = ExecuteMsg::BondForStAtom {};
 
-    let info = mock_info(&bob, &[coin(bond_amount.u128(), "uluna")]);
+    let info = mock_info(&bob, &[coin(bond_amount.u128(), "uatom")]);
 
     let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
@@ -1657,12 +1657,12 @@ pub fn proper_withdraw_unbonded_respect_slashing_statom() {
     match delegate.msg.clone() {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, coin(bond_amount.u128(), "uluna"));
+            assert_eq!(amount, coin(bond_amount.u128(), "uatom"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
-    set_delegation(&mut deps.querier, validator, bond_amount.u128(), "uluna");
+    set_delegation(&mut deps.querier, validator, bond_amount.u128(), "uatom");
 
     let res = execute_unbond_statom(deps.as_mut(), mock_env(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
@@ -1674,7 +1674,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_statom() {
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
-            denom: "uluna".to_string(),
+            denom: "uatom".to_string(),
             amount: Uint128::from(0u64),
         },
     )]);
@@ -1694,7 +1694,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_statom() {
     assert!(wdraw_unbonded_res.is_err(), "unbonded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
-        StdError::generic_err("No withdrawable uluna assets are available yet")
+        StdError::generic_err("No withdrawable uatom assets are available yet")
     );
 
     // trigger undelegation message
@@ -1718,7 +1718,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_statom() {
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
-            denom: "uluna".to_string(),
+            denom: "uatom".to_string(),
             amount: Uint128::from(900u64),
         },
     )]);
@@ -1793,7 +1793,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_statom() {
     let bob = String::from("bob");
     let bond_msg = ExecuteMsg::BondForStAtom {};
 
-    let info = mock_info(&bob, &[coin(bond_amount.u128(), "uluna")]);
+    let info = mock_info(&bob, &[coin(bond_amount.u128(), "uatom")]);
 
     let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
@@ -1808,12 +1808,12 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_statom() {
     match delegate.msg.clone() {
         CosmosMsg::Staking(StakingMsg::Delegate { validator, amount }) => {
             assert_eq!(validator.as_str(), DEFAULT_VALIDATOR);
-            assert_eq!(amount, coin(bond_amount.u128(), "uluna"));
+            assert_eq!(amount, coin(bond_amount.u128(), "uatom"));
         }
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
-    set_delegation(&mut deps.querier, validator, bond_amount.u128(), "uluna");
+    set_delegation(&mut deps.querier, validator, bond_amount.u128(), "uatom");
 
     let res = execute_unbond_statom(deps.as_mut(), mock_env(), unbond_amount, bob.clone()).unwrap();
     assert_eq!(1, res.messages.len());
@@ -1826,7 +1826,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_statom() {
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
-            denom: "uluna".to_string(),
+            denom: "uatom".to_string(),
             amount: Uint128::from(0u64),
         },
     )]);
@@ -1852,7 +1852,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_statom() {
     assert!(wdraw_unbonded_res.is_err(), "unbonded error");
     assert_eq!(
         wdraw_unbonded_res.unwrap_err(),
-        StdError::generic_err("No withdrawable uluna assets are available yet")
+        StdError::generic_err("No withdrawable uatom assets are available yet")
     );
 
     // trigger undelegation message
@@ -1896,7 +1896,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_statom() {
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
-            denom: "uluna".to_string(),
+            denom: "uatom".to_string(),
             amount: Uint128::from(900u64),
         },
     )]);
@@ -1986,7 +1986,7 @@ pub fn proper_withdraw_unbond_with_dummies_statom() {
     let bob = String::from("bob");
     let bond_msg = ExecuteMsg::BondForStAtom {};
 
-    let info = mock_info(&bob, &[coin(bond_amount.u128(), "uluna")]);
+    let info = mock_info(&bob, &[coin(bond_amount.u128(), "uatom")]);
 
     let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
@@ -2001,7 +2001,7 @@ pub fn proper_withdraw_unbond_with_dummies_statom() {
         &mut deps.querier,
         validator.clone(),
         bond_amount.u128(),
-        "uluna",
+        "uatom",
     );
 
     let res = execute_unbond_statom(deps.as_mut(), mock_env(), unbond_amount, bob.clone()).unwrap();
@@ -2015,7 +2015,7 @@ pub fn proper_withdraw_unbond_with_dummies_statom() {
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
-            denom: "uluna".to_string(),
+            denom: "uatom".to_string(),
             amount: Uint128::from(0u64),
         },
     )]);
@@ -2039,7 +2039,7 @@ pub fn proper_withdraw_unbond_with_dummies_statom() {
         &mut deps.querier,
         validator,
         bond_amount.u128() - 2000,
-        "uluna",
+        "uatom",
     );
 
     let res =
@@ -2063,7 +2063,7 @@ pub fn proper_withdraw_unbond_with_dummies_statom() {
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {
-            denom: "uluna".to_string(),
+            denom: "uatom".to_string(),
             amount: Uint128::from(2200u64),
         },
     )]);
@@ -2156,7 +2156,7 @@ pub fn test_update_params() {
     let params: Parameters =
         from_binary(&query(deps.as_ref(), mock_env(), Params {}).unwrap()).unwrap();
     assert_eq!(params.epoch_period, 20);
-    assert_eq!(params.underlying_coin_denom, "uluna");
+    assert_eq!(params.underlying_coin_denom, "uatom");
     assert_eq!(params.unbonding_period, 2);
 
     //test with some swap_denom.
@@ -2174,7 +2174,7 @@ pub fn test_update_params() {
     let params: Parameters =
         from_binary(&query(deps.as_ref(), mock_env(), Params {}).unwrap()).unwrap();
     assert_eq!(params.epoch_period, 20);
-    assert_eq!(params.underlying_coin_denom, "uluna");
+    assert_eq!(params.underlying_coin_denom, "uatom");
     assert_eq!(params.unbonding_period, 3);
 }
 
@@ -2344,7 +2344,7 @@ pub fn proper_update_config() {
 
 fn set_delegation(querier: &mut WasmMockQuerier, validator: Validator, amount: u128, denom: &str) {
     querier.update_staking(
-        "uluna",
+        "uatom",
         &[validator.clone()],
         &[sample_delegation(validator.address, coin(amount, denom))],
     );
@@ -2355,7 +2355,7 @@ fn set_delegation_query(
     delegate: &[FullDelegation],
     validators: &[Validator],
 ) {
-    querier.update_staking("uluna", validators, delegate);
+    querier.update_staking("uatom", validators, delegate);
 }
 
 fn sample_delegation(addr: String, amount: Coin) -> FullDelegation {
@@ -2400,7 +2400,7 @@ fn proper_redelegate_proxy() {
 
     let redelegate_proxy_msg = ExecuteMsg::RedelegateProxy {
         src_validator: String::from("src_validator"),
-        redelegations: vec![(String::from("dst_validator"), Coin::new(100, "uluna"))],
+        redelegations: vec![(String::from("dst_validator"), Coin::new(100, "uatom"))],
     };
 
     //invalid sender
@@ -2433,7 +2433,7 @@ fn proper_redelegate_proxy() {
         }) => {
             assert_eq!(src_validator, String::from("src_validator"));
             assert_eq!(dst_validator, String::from("dst_validator"));
-            assert_eq!(amount, Coin::new(100, "uluna"));
+            assert_eq!(amount, Coin::new(100, "uatom"));
         }
         _ => panic!("Unexpected message: {:?}", redelegate),
     }
@@ -2451,7 +2451,7 @@ fn proper_redelegate_proxy() {
         }) => {
             assert_eq!(src_validator, String::from("src_validator"));
             assert_eq!(dst_validator, String::from("dst_validator"));
-            assert_eq!(amount, Coin::new(100, "uluna"));
+            assert_eq!(amount, Coin::new(100, "uatom"));
         }
         _ => panic!("Unexpected message: {:?}", redelegate),
     }

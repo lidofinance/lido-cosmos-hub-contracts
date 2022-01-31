@@ -44,7 +44,7 @@ use crate::testing::mock_querier::{
 fn default_init() -> InstantiateMsg {
     InstantiateMsg {
         hub_contract: String::from(MOCK_HUB_CONTRACT_ADDR),
-        statom_reward_denom: "uluna".to_string(),
+        statom_reward_denom: "uatom".to_string(),
         lido_fee_address: String::from(MOCK_LIDO_FEE_ADDRESS),
         lido_fee_rate: Decimal::from_ratio(Uint128::from(5u64), Uint128::from(100u64)),
     }
@@ -65,7 +65,7 @@ fn proper_initialization() {
 #[test]
 fn test_dispatch_rewards() {
     let mut deps = mock_dependencies(&[
-        Coin::new(200, "uluna"),
+        Coin::new(200, "uatom"),
         Coin::new(3200, "uusd"),
         Coin::new(6400, "usdr"),
     ]);
@@ -84,21 +84,21 @@ fn test_dispatch_rewards() {
     assert_eq!(2, res.messages.len());
     for attr in res.attributes {
         if attr.key == "statom_rewards" {
-            assert_eq!("190uluna", attr.value)
+            assert_eq!("190uatom", attr.value)
         }
         if attr.key == "lido_statom_fee" {
-            assert_eq!("10uluna", attr.value)
+            assert_eq!("10uatom", attr.value)
         }
     }
 }
 
 #[test]
 fn test_dispatch_rewards_zero_lido_fee() {
-    let mut deps = mock_dependencies(&[Coin::new(200, "uluna"), Coin::new(320, "uusd")]);
+    let mut deps = mock_dependencies(&[Coin::new(200, "uatom"), Coin::new(320, "uusd")]);
 
     let msg = InstantiateMsg {
         hub_contract: String::from(MOCK_HUB_CONTRACT_ADDR),
-        statom_reward_denom: "uluna".to_string(),
+        statom_reward_denom: "uatom".to_string(),
         lido_fee_address: String::from(MOCK_LIDO_FEE_ADDRESS),
         lido_fee_rate: Decimal::zero(),
     };
@@ -116,7 +116,7 @@ fn test_dispatch_rewards_zero_lido_fee() {
 
     for attr in res.attributes {
         if attr.key == "statom_rewards" {
-            assert_eq!("200uluna", attr.value)
+            assert_eq!("200uatom", attr.value)
         }
     }
 }
@@ -202,7 +202,7 @@ fn test_update_config() {
     );
 
     let config = CONFIG.load(&deps.storage).unwrap();
-    assert_eq!(String::from("uluna"), config.statom_reward_denom);
+    assert_eq!(String::from("uatom"), config.statom_reward_denom);
 
     // change lido_fee_address
     let update_config_msg = ExecuteMsg::UpdateConfig {

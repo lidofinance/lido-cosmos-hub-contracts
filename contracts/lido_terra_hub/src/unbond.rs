@@ -65,7 +65,7 @@ pub fn execute_withdraw_unbonded(
     // remove the previous batches for the user
     remove_unbond_wait_list(deps.storage, deprecated_batches, sender_human.to_string())?;
 
-    // Update previous balance used for calculation in next Luna batch release
+    // Update previous balance used for calculation in next Atom batch release
     let prev_balance = hub_balance.checked_sub(withdraw_amount)?;
     STATE.update(deps.storage, |mut last_state| -> StdResult<_> {
         last_state.prev_hub_balance = prev_balance;
