@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub hub_contract: String,
-    pub stluna_reward_denom: String,
+    pub statom_reward_denom: String,
     pub lido_fee_address: String,
     pub lido_fee_rate: Decimal,
 }
@@ -30,7 +30,7 @@ pub enum ExecuteMsg {
     UpdateConfig {
         owner: Option<String>,
         hub_contract: Option<String>,
-        stluna_reward_denom: Option<String>,
+        statom_reward_denom: Option<String>,
         lido_fee_address: Option<String>,
         lido_fee_rate: Option<Decimal>,
     },
@@ -40,7 +40,7 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    // GetBufferedRewards returns the buffered amount of stLuna rewards.
+    // GetBufferedRewards returns the buffered amount of stAtom rewards.
     GetBufferedRewards {},
     // Config returns config
     Config {},

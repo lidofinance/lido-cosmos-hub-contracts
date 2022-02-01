@@ -29,11 +29,11 @@ fn test_deduct_tax() {
         }
     );
 
-    // no tax deduction on uluna
+    // no tax deduction on uatom
     assert_eq!(
-        deduct_tax(&deps.as_mut().querier, Coin::new(50000000u128, "uluna")).unwrap(),
+        deduct_tax(&deps.as_mut().querier, Coin::new(50000000u128, "uatom")).unwrap(),
         Coin {
-            denom: "uluna".to_string(),
+            denom: "uatom".to_string(),
             amount: Uint128::new(50000000u128)
         }
     );

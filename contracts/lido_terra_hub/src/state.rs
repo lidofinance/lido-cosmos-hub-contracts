@@ -48,7 +48,7 @@ pub fn store_unbond_wait_list(
     position_indexer.update(&batch, |asked_already| -> StdResult<UnbondWaitEntity> {
         let mut wl = asked_already.unwrap_or_default();
         match unbond_type {
-            UnbondType::StLuna => wl.stluna_amount += amount,
+            UnbondType::StAtom => wl.statom_amount += amount,
         }
         Ok(wl)
     })?;
@@ -93,7 +93,7 @@ pub fn get_unbond_requests(storage: &dyn Storage, sender_addr: String) -> StdRes
     for item in res.range(None, None, Order::Ascending) {
         let (k, value) = item?;
         let user_batch: u64 = from_slice(&k)?;
-        requests.push((user_batch, value.stluna_amount))
+        requests.push((user_batch, value.statom_amount))
     }
     Ok(requests)
 }
@@ -117,7 +117,7 @@ pub fn get_finished_amount(
         let history = read_unbond_history(storage, user_batch);
         if let Ok(h) = history {
             if h.released {
-                withdrawable_amount += v.stluna_amount * h.stluna_withdraw_rate;
+                withdrawable_amount += v.statom_amount * h.statom_withdraw_rate;
                 deprecated_batches.push(user_batch);
             }
         }
@@ -141,7 +141,7 @@ pub fn query_get_finished_amount(
         let history = read_unbond_history(storage, user_batch);
         if let Ok(h) = history {
             if h.time < block_time {
-                withdrawable_amount += v.stluna_amount * h.stluna_withdraw_rate;
+                withdrawable_amount += v.statom_amount * h.statom_withdraw_rate;
             }
         }
     }

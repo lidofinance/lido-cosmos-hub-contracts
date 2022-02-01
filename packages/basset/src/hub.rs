@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq)]
 pub enum BondType {
-    StLuna,
+    StAtom,
     BondRewards,
 }
 
@@ -21,10 +21,10 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct State {
     #[serde(skip_serializing, skip_deserializing)]
-    pub total_stluna_issued: Uint128,
+    pub total_statom_issued: Uint128,
 
-    pub stluna_exchange_rate: Decimal,
-    pub total_bond_stluna_amount: Uint128,
+    pub statom_exchange_rate: Decimal,
+    pub total_bond_statom_amount: Uint128,
     pub prev_hub_balance: Uint128,
     pub last_unbonded_time: u64,
     pub last_processed_batch: u64,
@@ -35,17 +35,17 @@ pub struct Config {
     pub creator: CanonicalAddr,
     pub reward_dispatcher_contract: Option<CanonicalAddr>,
     pub validators_registry_contract: Option<CanonicalAddr>,
-    pub stluna_token_contract: Option<CanonicalAddr>,
+    pub statom_token_contract: Option<CanonicalAddr>,
 }
 
 impl State {
-    pub fn update_stluna_exchange_rate(&mut self, total_issued: Uint128, requested: Uint128) {
+    pub fn update_statom_exchange_rate(&mut self, total_issued: Uint128, requested: Uint128) {
         let actual_supply = total_issued + requested;
-        if self.total_bond_stluna_amount.is_zero() || actual_supply.is_zero() {
-            self.stluna_exchange_rate = Decimal::one()
+        if self.total_bond_statom_amount.is_zero() || actual_supply.is_zero() {
+            self.statom_exchange_rate = Decimal::one()
         } else {
-            self.stluna_exchange_rate =
-                Decimal::from_ratio(self.total_bond_stluna_amount, actual_supply);
+            self.statom_exchange_rate =
+                Decimal::from_ratio(self.total_bond_statom_amount, actual_supply);
         }
     }
 }
@@ -62,7 +62,7 @@ pub enum ExecuteMsg {
         owner: Option<String>,
         rewards_dispatcher_contract: Option<String>,
         validators_registry_contract: Option<String>,
-        stluna_token_contract: Option<String>,
+        statom_token_contract: Option<String>,
     },
 
     /// update the parameters that is needed for the contract
@@ -79,7 +79,7 @@ pub enum ExecuteMsg {
     /// Receives `amount` in underlying coin denom from sender.
     /// Delegate `amount` equally between validators from the registry.
     /// Issue `amount` / exchange_rate for the user.
-    BondForStLuna {},
+    BondForStAtom {},
 
     BondRewards {},
 
@@ -127,7 +127,7 @@ pub struct Parameters {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CurrentBatch {
     pub id: u64,
-    pub requested_stluna: Uint128,
+    pub requested_statom: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -135,9 +135,9 @@ pub struct UnbondHistory {
     pub batch_id: u64,
     pub time: u64,
 
-    pub stluna_amount: Uint128,
-    pub stluna_applied_exchange_rate: Decimal,
-    pub stluna_withdraw_rate: Decimal,
+    pub statom_amount: Uint128,
+    pub statom_applied_exchange_rate: Decimal,
+    pub statom_withdraw_rate: Decimal,
 
     pub released: bool,
 }
@@ -147,26 +147,26 @@ pub struct UnbondHistoryResponse {
     pub batch_id: u64,
     pub time: u64,
 
-    pub stluna_amount: Uint128,
-    pub stluna_applied_exchange_rate: Decimal,
-    pub stluna_withdraw_rate: Decimal,
+    pub statom_amount: Uint128,
+    pub statom_applied_exchange_rate: Decimal,
+    pub statom_withdraw_rate: Decimal,
 
     pub released: bool,
 }
 
 #[derive(JsonSchema, Serialize, Deserialize, Default)]
 pub struct UnbondWaitEntity {
-    pub stluna_amount: Uint128,
+    pub statom_amount: Uint128,
 }
 
 pub enum UnbondType {
-    StLuna,
+    StAtom,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateResponse {
-    pub stluna_exchange_rate: Decimal,
-    pub total_bond_stluna_amount: Uint128,
+    pub statom_exchange_rate: Decimal,
+    pub total_bond_statom_amount: Uint128,
     pub prev_hub_balance: Uint128,
     pub last_unbonded_time: u64,
     pub last_processed_batch: u64,
@@ -177,13 +177,13 @@ pub struct ConfigResponse {
     pub owner: String,
     pub reward_dispatcher_contract: Option<String>,
     pub validators_registry_contract: Option<String>,
-    pub stluna_token_contract: Option<String>,
+    pub statom_token_contract: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CurrentBatchResponse {
     pub id: u64,
-    pub requested_stluna: Uint128,
+    pub requested_statom: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -205,7 +205,7 @@ pub struct AllHistoryResponse {
 pub struct MigrateMsg {
     pub reward_dispatcher_contract: String,
     pub validators_registry_contract: String,
-    pub stluna_token_contract: String,
+    pub statom_token_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -7,8 +7,8 @@ static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 // TODO: possibly remove / rewrite
 pub fn compute_tax(querier: &QuerierWrapper, coin: &Coin) -> StdResult<Uint128> {
     // https://docs.terra.money/Reference/Terra-core/Module-specifications/spec-auth.html#stability-fee
-    // In addition to the gas fee, the ante handler charges a stability fee that is a percentage of the transaction's value only for the Stable Coins except LUNA.
-    if coin.denom == "uluna" {
+    // In addition to the gas fee, the ante handler charges a stability fee that is a percentage of the transaction's value only for the Stable Coins except ATOM.
+    if coin.denom == "uatom" {
         return Ok(Uint128::zero());
     }
     let terra_querier = TerraQuerier::new(querier);

@@ -19,7 +19,7 @@
         }
       ]
     },
-    "stluna_token_contract": {
+    "statom_token_contract": {
       "anyOf": [
         {
           "$ref": "#/definitions/CanonicalAddr"

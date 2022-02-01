@@ -44,7 +44,7 @@ use crate::testing::mock_querier::{
 fn default_init() -> InstantiateMsg {
     InstantiateMsg {
         hub_contract: String::from(MOCK_HUB_CONTRACT_ADDR),
-        stluna_reward_denom: "uluna".to_string(),
+        statom_reward_denom: "uatom".to_string(),
         lido_fee_address: String::from(MOCK_LIDO_FEE_ADDRESS),
         lido_fee_rate: Decimal::from_ratio(Uint128::from(5u64), Uint128::from(100u64)),
     }
@@ -65,7 +65,7 @@ fn proper_initialization() {
 #[test]
 fn test_dispatch_rewards() {
     let mut deps = mock_dependencies(&[
-        Coin::new(200, "uluna"),
+        Coin::new(200, "uatom"),
         Coin::new(3200, "uusd"),
         Coin::new(6400, "usdr"),
     ]);
@@ -83,22 +83,22 @@ fn test_dispatch_rewards() {
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(2, res.messages.len());
     for attr in res.attributes {
-        if attr.key == "stluna_rewards" {
-            assert_eq!("190uluna", attr.value)
+        if attr.key == "statom_rewards" {
+            assert_eq!("190uatom", attr.value)
         }
-        if attr.key == "lido_stluna_fee" {
-            assert_eq!("10uluna", attr.value)
+        if attr.key == "lido_statom_fee" {
+            assert_eq!("10uatom", attr.value)
         }
     }
 }
 
 #[test]
 fn test_dispatch_rewards_zero_lido_fee() {
-    let mut deps = mock_dependencies(&[Coin::new(200, "uluna"), Coin::new(320, "uusd")]);
+    let mut deps = mock_dependencies(&[Coin::new(200, "uatom"), Coin::new(320, "uusd")]);
 
     let msg = InstantiateMsg {
         hub_contract: String::from(MOCK_HUB_CONTRACT_ADDR),
-        stluna_reward_denom: "uluna".to_string(),
+        statom_reward_denom: "uatom".to_string(),
         lido_fee_address: String::from(MOCK_LIDO_FEE_ADDRESS),
         lido_fee_rate: Decimal::zero(),
     };
@@ -115,8 +115,8 @@ fn test_dispatch_rewards_zero_lido_fee() {
     assert_eq!(1, res.messages.len());
 
     for attr in res.attributes {
-        if attr.key == "stluna_rewards" {
-            assert_eq!("200uluna", attr.value)
+        if attr.key == "statom_rewards" {
+            assert_eq!("200uatom", attr.value)
         }
     }
 }
@@ -138,7 +138,7 @@ fn test_update_config() {
     let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: Some(String::from("some_addr")),
         hub_contract: None,
-        stluna_reward_denom: None,
+        statom_reward_denom: None,
         lido_fee_address: None,
         lido_fee_rate: None,
     };
@@ -151,7 +151,7 @@ fn test_update_config() {
     let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: Some(new_owner.clone()),
         hub_contract: None,
-        stluna_reward_denom: None,
+        statom_reward_denom: None,
         lido_fee_address: None,
         lido_fee_rate: None,
     };
@@ -167,7 +167,7 @@ fn test_update_config() {
     let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: None,
         hub_contract: Some(String::from("some_address")),
-        stluna_reward_denom: None,
+        statom_reward_denom: None,
         lido_fee_address: None,
         lido_fee_rate: None,
     };
@@ -183,11 +183,11 @@ fn test_update_config() {
         config.hub_contract
     );
 
-    // change stluna_reward_denom
+    // change statom_reward_denom
     let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: None,
         hub_contract: None,
-        stluna_reward_denom: Some(String::from("new_denom")),
+        statom_reward_denom: Some(String::from("new_denom")),
         lido_fee_address: None,
         lido_fee_rate: None,
     };
@@ -196,19 +196,19 @@ fn test_update_config() {
     assert!(res.is_err());
     assert_eq!(
         Some(StdError::generic_err(
-            "updating stluna reward denom is forbidden"
+            "updating statom reward denom is forbidden"
         )),
         res.err()
     );
 
     let config = CONFIG.load(&deps.storage).unwrap();
-    assert_eq!(String::from("uluna"), config.stluna_reward_denom);
+    assert_eq!(String::from("uatom"), config.statom_reward_denom);
 
     // change lido_fee_address
     let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: None,
         hub_contract: None,
-        stluna_reward_denom: None,
+        statom_reward_denom: None,
         lido_fee_address: Some(String::from("some_address")),
         lido_fee_rate: None,
     };
@@ -228,7 +228,7 @@ fn test_update_config() {
     let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: None,
         hub_contract: None,
-        stluna_reward_denom: None,
+        statom_reward_denom: None,
         lido_fee_address: None,
         lido_fee_rate: Some(Decimal::one()),
     };

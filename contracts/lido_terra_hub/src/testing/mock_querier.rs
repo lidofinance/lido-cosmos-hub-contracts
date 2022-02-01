@@ -148,8 +148,8 @@ impl WasmMockQuerier {
                             total_supply += *balance.1;
                         }
                         let token_inf: TokenInfo = TokenInfo {
-                            name: "stluna".to_string(),
-                            symbol: "STLUNA".to_string(),
+                            name: "statom".to_string(),
+                            symbol: "STATOM".to_string(),
                             decimals: 6,
                             total_supply,
                             mint: Some(MinterData {
@@ -209,8 +209,8 @@ impl WasmMockQuerier {
                         validators_registry_contract: Some(
                             api.addr_canonicalize(&String::from("validators")).unwrap(),
                         ),
-                        stluna_token_contract: Some(
-                            api.addr_canonicalize(&String::from("stluna_token"))
+                        statom_token_contract: Some(
+                            api.addr_canonicalize(&String::from("statom_token"))
                                 .unwrap(),
                         ),
                     };
@@ -224,11 +224,11 @@ impl WasmMockQuerier {
             QueryRequest::Bank(BankQuery::AllBalances { address }) => {
                 if address == &String::from("reward") {
                     let mut coins: Vec<Coin> = vec![];
-                    let luna = Coin {
-                        denom: "uluna".to_string(),
+                    let atom = Coin {
+                        denom: "uatom".to_string(),
                         amount: Uint128::from(1000u128),
                     };
-                    coins.push(luna);
+                    coins.push(atom);
                     let krt = Coin {
                         denom: "ukrt".to_string(),
                         amount: Uint128::from(1000u128),
@@ -246,7 +246,7 @@ impl WasmMockQuerier {
                 }
             }
             QueryRequest::Bank(BankQuery::Balance { address, denom }) => {
-                if address == &String::from(MOCK_CONTRACT_ADDR) && denom == "uluna" {
+                if address == &String::from(MOCK_CONTRACT_ADDR) && denom == "uatom" {
                     match self
                         .balance_querier
                         .balances

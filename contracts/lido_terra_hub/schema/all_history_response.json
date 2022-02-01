@@ -27,9 +27,9 @@
       "required": [
         "batch_id",
         "released",
-        "stluna_amount",
-        "stluna_applied_exchange_rate",
-        "stluna_withdraw_rate",
+        "statom_amount",
+        "statom_applied_exchange_rate",
+        "statom_withdraw_rate",
         "time"
       ],
       "properties": {
@@ -41,13 +41,13 @@
         "released": {
           "type": "boolean"
         },
-        "stluna_amount": {
+        "statom_amount": {
           "$ref": "#/definitions/Uint128"
         },
-        "stluna_applied_exchange_rate": {
+        "statom_applied_exchange_rate": {
           "$ref": "#/definitions/Decimal"
         },
-        "stluna_withdraw_rate": {
+        "statom_withdraw_rate": {
           "$ref": "#/definitions/Decimal"
         },
         "time": {

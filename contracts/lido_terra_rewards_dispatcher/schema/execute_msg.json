@@ -39,7 +39,7 @@
                 "null"
               ]
             },
-            "stluna_reward_denom": {
+            "statom_reward_denom": {
               "type": [
                 "string",
                 "null"
