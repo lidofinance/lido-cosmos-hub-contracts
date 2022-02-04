@@ -159,10 +159,6 @@ pub struct UnbondWaitEntity {
     pub statom_amount: Uint128,
 }
 
-pub enum UnbondType {
-    StAtom,
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateResponse {
     pub statom_exchange_rate: Decimal,
