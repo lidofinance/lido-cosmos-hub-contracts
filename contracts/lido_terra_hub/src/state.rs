@@ -22,10 +22,10 @@ use basset::hub::{
     UnbondWaitEntity,
 };
 
-pub const CONFIG: Item<Config> = Item::new("\u{0}\u{6}config");
-pub const PARAMETERS: Item<Parameters> = Item::new("\u{0}\u{b}parameteres");
-pub const CURRENT_BATCH: Item<CurrentBatch> = Item::new("\u{0}\u{d}current_batch");
-pub const STATE: Item<State> = Item::new("\u{0}\u{5}state");
+pub const CONFIG: Item<Config> = Item::new("config");
+pub const PARAMETERS: Item<Parameters> = Item::new("parameters");
+pub const CURRENT_BATCH: Item<CurrentBatch> = Item::new("current_batch");
+pub const STATE: Item<State> = Item::new("state");
 
 pub static NEW_PREFIX_WAIT_MAP: &[u8] = b"wait";
 pub static UNBOND_HISTORY_MAP: &[u8] = b"history_map";
