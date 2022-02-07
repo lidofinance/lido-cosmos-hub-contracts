@@ -29,35 +29,26 @@ rustup target add wasm32-unknown-unknown
 
 3. Make sure [Docker](https://www.docker.com/) is installed
 
-### Unit / Integration Tests
+### Unit Tests
 
 Each contract contains Rust unit tests embedded within the contract source directories. You can run:
 
 ```sh
-cargo test unit-test
-cargo test integration-test
+make test
 ```
 
-### Compiling
-
-After making sure tests pass, you can compile each contract with the following:
+### Generating schema
 
 ```sh
-RUSTFLAGS='-C link-arg=-s' cargo wasm
-cp ../../target/wasm32-unknown-unknown/release/cw1_subkeys.wasm .
-ls -l cw1_subkeys.wasm
-sha256sum cw1_subkeys.wasm
+make schema
 ```
 
-#### Production
+### Production
 
 For production builds, run the following:
 
 ```sh
-docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/workspace-optimizer:0.11.5
+make build
 ```
 
 This performs several optimizations which can significantly reduce the final size of the contract binaries, which will be available inside the `artifacts/` directory.
