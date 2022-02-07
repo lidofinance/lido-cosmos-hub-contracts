@@ -202,11 +202,7 @@ pub struct AllHistoryResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub reward_dispatcher_contract: String,
-    pub validators_registry_contract: String,
-    pub statom_token_contract: String,
-}
+pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

@@ -49,7 +49,7 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw20_base::msg::ExecuteMsg::{Burn, Mint};
 
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
-use crate::state::{read_unbond_wait_list, CONFIG, NEW_PREFIX_WAIT_MAP};
+use crate::state::{read_unbond_wait_list, CONFIG, PREFIX_WAIT_MAP};
 use lido_terra_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
 
 use basset::hub::Cw20HookMsg::Unbond;
@@ -2522,7 +2522,7 @@ pub fn test_pause() {
     let batch = to_vec("batch_id").unwrap();
     let addr = to_vec("sender_address").unwrap();
     let mut position_indexer: Bucket<UnbondWaitEntity> =
-        Bucket::multilevel(deps.storage.borrow_mut(), &[NEW_PREFIX_WAIT_MAP, &addr]);
+        Bucket::multilevel(deps.storage.borrow_mut(), &[PREFIX_WAIT_MAP, &addr]);
     position_indexer
         .update(&batch, |asked_already| -> StdResult<UnbondWaitEntity> {
             let mut wl = asked_already.unwrap_or_default();
