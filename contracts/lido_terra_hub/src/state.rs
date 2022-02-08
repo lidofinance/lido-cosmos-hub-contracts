@@ -18,8 +18,7 @@ use cosmwasm_storage::{Bucket, PrefixedStorage, ReadonlyBucket, ReadonlyPrefixed
 use cw_storage_plus::Item;
 
 use basset::hub::{
-    Config, CurrentBatch, Parameters, State, UnbondHistory, UnbondRequest, UnbondType,
-    UnbondWaitEntity,
+    Config, CurrentBatch, Parameters, State, UnbondHistory, UnbondRequest, UnbondWaitEntity,
 };
 
 pub const CONFIG: Item<Config> = Item::new("config");
@@ -39,7 +38,6 @@ pub fn store_unbond_wait_list(
     batch_id: u64,
     sender_address: String,
     amount: Uint128,
-    unbond_type: UnbondType,
 ) -> StdResult<()> {
     let batch = to_vec(&batch_id)?;
     let addr = to_vec(&sender_address)?;
@@ -47,9 +45,7 @@ pub fn store_unbond_wait_list(
         Bucket::multilevel(storage, &[PREFIX_WAIT_MAP, &addr]);
     position_indexer.update(&batch, |asked_already| -> StdResult<UnbondWaitEntity> {
         let mut wl = asked_already.unwrap_or_default();
-        match unbond_type {
-            UnbondType::StAtom => wl.statom_amount += amount,
-        }
+        wl.statom_amount += amount;
         Ok(wl)
     })?;
 

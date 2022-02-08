@@ -17,7 +17,7 @@ use crate::state::{
     get_finished_amount, read_unbond_history, remove_unbond_wait_list, store_unbond_history,
     store_unbond_wait_list, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
 };
-use basset::hub::{CurrentBatch, State, UnbondHistory, UnbondType};
+use basset::hub::{CurrentBatch, State, UnbondHistory};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
     attr, coin, coins, to_binary, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response,
@@ -293,13 +293,7 @@ pub(crate) fn execute_unbond_statom(
     // Collect all the requests within a epoch period
     current_batch.requested_statom += amount;
 
-    store_unbond_wait_list(
-        deps.storage,
-        current_batch.id,
-        sender.clone(),
-        amount,
-        UnbondType::StAtom,
-    )?;
+    store_unbond_wait_list(deps.storage, current_batch.id, sender.clone(), amount)?;
 
     let current_time = env.block.time.seconds();
     let passed_time = current_time - state.last_unbonded_time;
