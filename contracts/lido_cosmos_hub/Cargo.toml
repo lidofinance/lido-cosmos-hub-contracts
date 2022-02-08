@@ -1,5 +1,5 @@
 [package]
-name = "lido_terra_hub"
+name = "lido_cosmos_hub"
 version = "1.0.0"
 authors = ["MSNTCS <mohammad@terra.money>"]
 edition = "2018"

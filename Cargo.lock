@@ -788,6 +788,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "lido_cosmos_hub"
+version = "1.0.0"
+dependencies = [
+ "basset",
+ "cosmwasm-bignumber",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cosmwasm-vm",
+ "cw-storage-plus",
+ "cw20",
+ "cw20-base",
+ "lido_cosmos_rewards_dispatcher",
+ "lido_cosmos_validators_registry",
+ "rand 0.5.6",
+ "schemars",
+ "serde",
+ "signed_integer",
+ "snafu",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "lido_cosmos_rewards_dispatcher"
 version = "0.1.0"
 dependencies = [
@@ -830,29 +853,6 @@ dependencies = [
  "cw-storage-plus",
  "schemars",
  "serde",
- "snafu",
- "terra-cosmwasm",
-]
-
-[[package]]
-name = "lido_terra_hub"
-version = "1.0.0"
-dependencies = [
- "basset",
- "cosmwasm-bignumber",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cosmwasm-vm",
- "cw-storage-plus",
- "cw20",
- "cw20-base",
- "lido_cosmos_rewards_dispatcher",
- "lido_cosmos_validators_registry",
- "rand 0.5.6",
- "schemars",
- "serde",
- "signed_integer",
  "snafu",
  "terra-cosmwasm",
 ]
