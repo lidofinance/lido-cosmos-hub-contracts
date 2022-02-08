@@ -36,7 +36,7 @@ use basset::hub::{
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
-use lido_terra_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
+use lido_cosmos_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(

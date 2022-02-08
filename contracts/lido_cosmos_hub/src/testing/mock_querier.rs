@@ -21,7 +21,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_storage::to_length_prefixed;
 use cw20_base::state::{MinterData, TokenInfo};
-use lido_terra_validators_registry::registry::ValidatorResponse as RegistryValidator;
+use lido_cosmos_validators_registry::registry::ValidatorResponse as RegistryValidator;
 use std::collections::HashMap;
 
 use basset::hub::Config;
