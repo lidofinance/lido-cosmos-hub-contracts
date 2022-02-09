@@ -1,7 +1,7 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
-    from_slice, to_binary, AllBalanceResponse, Api, BalanceResponse, BankQuery, CanonicalAddr,
-    Coin, ContractResult, Decimal, OwnedDeps, Querier, QuerierResult, QueryRequest, SystemError,
+    from_slice, to_binary, Addr, AllBalanceResponse, Api, BalanceResponse, BankQuery, Coin,
+    ContractResult, Decimal, OwnedDeps, Querier, QuerierResult, QueryRequest, SystemError,
     SystemResult, Uint128, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
@@ -111,16 +111,15 @@ impl WasmMockQuerier {
 
                 if key.as_slice().to_vec() == prefix_config {
                     let config = Config {
-                        creator: api.addr_canonicalize(&String::from("owner1")).unwrap(),
+                        creator: api.addr_validate(&String::from("owner1")).unwrap(),
                         reward_dispatcher_contract: Some(
-                            api.addr_canonicalize(&String::from("reward")).unwrap(),
+                            api.addr_validate(&String::from("reward")).unwrap(),
                         ),
                         validators_registry_contract: Some(
-                            api.addr_canonicalize(&String::from("validators")).unwrap(),
+                            api.addr_validate(&String::from("validators")).unwrap(),
                         ),
                         statom_token_contract: Some(
-                            api.addr_canonicalize(&String::from("statom_token"))
-                                .unwrap(),
+                            api.addr_validate(&String::from("statom_token")).unwrap(),
                         ),
                     };
                     SystemResult::Ok(ContractResult::from(to_binary(&config)))
@@ -192,12 +191,12 @@ pub struct TokenInfo {
     pub decimals: u8,
     pub total_supply: Uint128,
     pub mint: Option<MinterData>,
-    pub owner: CanonicalAddr,
+    pub owner: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct MinterData {
-    pub minter: CanonicalAddr,
+    pub minter: Addr,
     /// cap is how many more tokens can be issued by the minter
     pub cap: Option<Uint128>,
 }

@@ -2,17 +2,15 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Config",
   "type": "object",
-  "required": [
-    "creator"
-  ],
+  "required": ["creator"],
   "properties": {
     "creator": {
-      "$ref": "#/definitions/CanonicalAddr"
+      "$ref": "#/definitions/Addr"
     },
     "reward_dispatcher_contract": {
       "anyOf": [
         {
-          "$ref": "#/definitions/CanonicalAddr"
+          "$ref": "#/definitions/Addr"
         },
         {
           "type": "null"
@@ -22,7 +20,7 @@
     "statom_token_contract": {
       "anyOf": [
         {
-          "$ref": "#/definitions/CanonicalAddr"
+          "$ref": "#/definitions/Addr"
         },
         {
           "type": "null"
@@ -32,7 +30,7 @@
     "validators_registry_contract": {
       "anyOf": [
         {
-          "$ref": "#/definitions/CanonicalAddr"
+          "$ref": "#/definitions/Addr"
         },
         {
           "type": "null"
@@ -45,7 +43,7 @@
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
     },
-    "CanonicalAddr": {
+    "Addr": {
       "$ref": "#/definitions/Binary"
     }
   }

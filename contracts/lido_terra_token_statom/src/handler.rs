@@ -46,7 +46,7 @@ pub fn execute_burn(
     info: MessageInfo,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let hub_contract = deps.api.addr_humanize(&HUB_CONTRACT.load(deps.storage)?)?;
+    let hub_contract = HUB_CONTRACT.load(deps.storage)?;
 
     let mut messages = vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: hub_contract.to_string(),
@@ -106,7 +106,7 @@ pub fn execute_burn_from(
     owner: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let hub_contract = deps.api.addr_humanize(&HUB_CONTRACT.load(deps.storage)?)?;
+    let hub_contract = HUB_CONTRACT.load(deps.storage)?;
 
     let res = cw20_burn_from(deps, env, info, owner, amount)?;
     let messages = vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {

@@ -1,4 +1,4 @@
-// Copyright 2021 LidoLicensed under the Apache License, Version 2.0 (the "License");
+// Copyright 2021 Lido Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
@@ -42,7 +42,7 @@ fn proper_instantiate() {
 
     assert_eq!(
         CONFIG.load(&deps.storage).unwrap().hub_contract,
-        deps.api.addr_canonicalize(&hub_address).unwrap()
+        deps.api.addr_validate(&hub_address).unwrap()
     )
 }
 
@@ -134,7 +134,7 @@ fn update_config() {
     assert!(res.is_ok());
     let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(
-        deps.api.addr_canonicalize(&new_hub_address).unwrap(),
+        deps.api.addr_validate(&new_hub_address).unwrap(),
         config.hub_contract
     );
 
@@ -146,10 +146,7 @@ fn update_config() {
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     assert!(res.is_ok());
     let config = CONFIG.load(&deps.storage).unwrap();
-    assert_eq!(
-        deps.api.addr_canonicalize(&new_owner).unwrap(),
-        config.owner
-    );
+    assert_eq!(deps.api.addr_validate(&new_owner).unwrap(), config.owner);
 }
 
 #[test]

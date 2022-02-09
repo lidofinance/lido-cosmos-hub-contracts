@@ -34,10 +34,10 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let conf = Config {
-        owner: deps.api.addr_canonicalize(info.sender.as_str())?,
-        hub_contract: deps.api.addr_canonicalize(&msg.hub_contract)?,
+        owner: deps.api.addr_validate(info.sender.as_str())?,
+        hub_contract: deps.api.addr_validate(&msg.hub_contract)?,
         statom_reward_denom: msg.statom_reward_denom,
-        lido_fee_address: deps.api.addr_canonicalize(&msg.lido_fee_address)?,
+        lido_fee_address: deps.api.addr_validate(&msg.lido_fee_address)?,
         lido_fee_rate: msg.lido_fee_rate,
     };
 
@@ -86,13 +86,13 @@ pub fn execute_update_config(
     lido_fee_rate: Option<Decimal>,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     let conf = CONFIG.load(deps.storage)?;
-    let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let sender_raw = deps.api.addr_validate(info.sender.as_str())?;
     if sender_raw != conf.owner {
         return Err(StdError::generic_err("unauthorized"));
     }
 
     if let Some(o) = owner {
-        let owner_raw = deps.api.addr_canonicalize(&o)?;
+        let owner_raw = deps.api.addr_validate(&o)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.owner = owner_raw;
@@ -101,7 +101,7 @@ pub fn execute_update_config(
     }
 
     if let Some(h) = hub_contract {
-        let hub_raw = deps.api.addr_canonicalize(&h)?;
+        let hub_raw = deps.api.addr_validate(&h)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.hub_contract = hub_raw;
@@ -123,7 +123,7 @@ pub fn execute_update_config(
     }
 
     if let Some(a) = lido_fee_address {
-        let address_raw = deps.api.addr_canonicalize(&a)?;
+        let address_raw = deps.api.addr_validate(&a)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.lido_fee_address = address_raw;
@@ -141,7 +141,7 @@ pub fn execute_dispatch_rewards(
 ) -> StdResult<Response<TerraMsgWrapper>> {
     let config = CONFIG.load(deps.storage)?;
 
-    let hub_addr = deps.api.addr_humanize(&config.hub_contract)?;
+    let hub_addr = config.hub_contract;
     if info.sender != hub_addr {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -182,10 +182,7 @@ pub fn execute_dispatch_rewards(
     if !lido_fees.is_empty() {
         messages.push(
             BankMsg::Send {
-                to_address: deps
-                    .api
-                    .addr_humanize(&config.lido_fee_address)?
-                    .to_string(),
+                to_address: config.lido_fee_address.to_string(),
                 amount: lido_fees,
             }
             .into(),

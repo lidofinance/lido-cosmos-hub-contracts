@@ -1,4 +1,4 @@
-use cosmwasm_std::{CanonicalAddr, Coin, Decimal, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -32,10 +32,10 @@ pub struct State {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub creator: CanonicalAddr,
-    pub reward_dispatcher_contract: Option<CanonicalAddr>,
-    pub validators_registry_contract: Option<CanonicalAddr>,
-    pub statom_token_contract: Option<CanonicalAddr>,
+    pub creator: Addr,
+    pub reward_dispatcher_contract: Option<Addr>,
+    pub validators_registry_contract: Option<Addr>,
+    pub statom_token_contract: Option<Addr>,
 }
 
 impl State {
