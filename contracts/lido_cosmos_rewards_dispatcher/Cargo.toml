@@ -1,5 +1,5 @@
 [package]
-name = "lido_terra_rewards_dispatcher"
+name = "lido_cosmos_rewards_dispatcher"
 version = "0.1.0"
 authors = ["Andrei Zavgorodnii <andrei.z@p2p.org>"]
 edition = "2018"

@@ -21,12 +21,12 @@ use basset::hub::{
     Config, CurrentBatch, Parameters, State, UnbondHistory, UnbondRequest, UnbondWaitEntity,
 };
 
-pub const CONFIG: Item<Config> = Item::new("\u{0}\u{6}config");
-pub const PARAMETERS: Item<Parameters> = Item::new("\u{0}\u{b}parameteres");
-pub const CURRENT_BATCH: Item<CurrentBatch> = Item::new("\u{0}\u{d}current_batch");
-pub const STATE: Item<State> = Item::new("\u{0}\u{5}state");
+pub const CONFIG: Item<Config> = Item::new("config");
+pub const PARAMETERS: Item<Parameters> = Item::new("parameters");
+pub const CURRENT_BATCH: Item<CurrentBatch> = Item::new("current_batch");
+pub const STATE: Item<State> = Item::new("state");
 
-pub static NEW_PREFIX_WAIT_MAP: &[u8] = b"wait";
+pub static PREFIX_WAIT_MAP: &[u8] = b"wait";
 pub static UNBOND_HISTORY_MAP: &[u8] = b"history_map";
 
 pub const MAX_DEFAULT_RANGE_LIMIT: u32 = 1000;
@@ -42,7 +42,7 @@ pub fn store_unbond_wait_list(
     let batch = to_vec(&batch_id)?;
     let addr = to_vec(&sender_address)?;
     let mut position_indexer: Bucket<UnbondWaitEntity> =
-        Bucket::multilevel(storage, &[NEW_PREFIX_WAIT_MAP, &addr]);
+        Bucket::multilevel(storage, &[PREFIX_WAIT_MAP, &addr]);
     position_indexer.update(&batch, |asked_already| -> StdResult<UnbondWaitEntity> {
         let mut wl = asked_already.unwrap_or_default();
         wl.statom_amount += amount;
@@ -60,7 +60,7 @@ pub fn remove_unbond_wait_list(
 ) -> StdResult<()> {
     let addr = to_vec(&sender_address)?;
     let mut position_indexer: Bucket<UnbondWaitEntity> =
-        Bucket::multilevel(storage, &[NEW_PREFIX_WAIT_MAP, &addr]);
+        Bucket::multilevel(storage, &[PREFIX_WAIT_MAP, &addr]);
     for b in batch_id {
         let batch = to_vec(&b)?;
         position_indexer.remove(&batch);
@@ -75,7 +75,7 @@ pub fn read_unbond_wait_list(
 ) -> StdResult<UnbondWaitEntity> {
     let vec = to_vec(&sender_addr)?;
     let res: ReadonlyBucket<UnbondWaitEntity> =
-        ReadonlyBucket::multilevel(storage, &[NEW_PREFIX_WAIT_MAP, &vec]);
+        ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
     let batch = to_vec(&batch_id)?;
     let wl = res.load(&batch)?;
     Ok(wl)
@@ -85,7 +85,7 @@ pub fn get_unbond_requests(storage: &dyn Storage, sender_addr: String) -> StdRes
     let vec = to_vec(&sender_addr)?;
     let mut requests: UnbondRequest = vec![];
     let res: ReadonlyBucket<UnbondWaitEntity> =
-        ReadonlyBucket::multilevel(storage, &[NEW_PREFIX_WAIT_MAP, &vec]);
+        ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
     for item in res.range(None, None, Order::Ascending) {
         let (k, value) = item?;
         let user_batch: u64 = from_slice(&k)?;
@@ -106,7 +106,7 @@ pub fn get_finished_amount(
     let mut withdrawable_amount: Uint128 = Uint128::zero();
     let mut deprecated_batches: Vec<u64> = vec![];
     let res: ReadonlyBucket<UnbondWaitEntity> =
-        ReadonlyBucket::multilevel(storage, &[NEW_PREFIX_WAIT_MAP, &vec]);
+        ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
     for item in res.range(None, None, Order::Ascending) {
         let (k, v) = item?;
         let user_batch: u64 = from_slice(&k)?;
@@ -130,7 +130,7 @@ pub fn query_get_finished_amount(
     let vec = to_vec(&sender_addr)?;
     let mut withdrawable_amount: Uint128 = Uint128::zero();
     let res: ReadonlyBucket<UnbondWaitEntity> =
-        ReadonlyBucket::multilevel(storage, &[NEW_PREFIX_WAIT_MAP, &vec]);
+        ReadonlyBucket::multilevel(storage, &[PREFIX_WAIT_MAP, &vec]);
     for item in res.range(None, None, Order::Ascending) {
         let (k, v) = item?;
         let user_batch: u64 = from_slice(&k)?;
