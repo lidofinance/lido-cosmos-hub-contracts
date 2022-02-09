@@ -35,8 +35,8 @@ use cosmwasm_std::{
     DepsMut, DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps, Querier, QueryRequest,
     Response, StakingMsg, StdError, StdResult, Storage, Uint128, Validator, WasmMsg, WasmQuery,
 };
-use lido_terra_validators_registry::msg::QueryMsg as QueryValidators;
-use lido_terra_validators_registry::registry::ValidatorResponse as RegistryValidator;
+use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
+use lido_cosmos_validators_registry::registry::ValidatorResponse as RegistryValidator;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -49,8 +49,8 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw20_base::msg::ExecuteMsg::{Burn, Mint};
 
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
-use crate::state::{read_unbond_wait_list, CONFIG, NEW_PREFIX_WAIT_MAP};
-use lido_terra_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
+use crate::state::{read_unbond_wait_list, CONFIG, PREFIX_WAIT_MAP};
+use lido_cosmos_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
 
 use basset::hub::Cw20HookMsg::Unbond;
 use basset::hub::ExecuteMsg::{CheckSlashing, Receive, UpdateConfig, UpdateParams};
@@ -2522,7 +2522,7 @@ pub fn test_pause() {
     let batch = to_vec("batch_id").unwrap();
     let addr = to_vec("sender_address").unwrap();
     let mut position_indexer: Bucket<UnbondWaitEntity> =
-        Bucket::multilevel(deps.storage.borrow_mut(), &[NEW_PREFIX_WAIT_MAP, &addr]);
+        Bucket::multilevel(deps.storage.borrow_mut(), &[PREFIX_WAIT_MAP, &addr]);
     position_indexer
         .update(&batch, |asked_already| -> StdResult<UnbondWaitEntity> {
             let mut wl = asked_already.unwrap_or_default();

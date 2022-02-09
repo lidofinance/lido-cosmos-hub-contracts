@@ -21,9 +21,9 @@ use cosmwasm_std::{
     StakingMsg, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw20::Cw20ExecuteMsg;
-use lido_terra_validators_registry::common::calculate_delegations;
-use lido_terra_validators_registry::msg::QueryMsg as QueryValidators;
-use lido_terra_validators_registry::registry::ValidatorResponse;
+use lido_cosmos_validators_registry::common::calculate_delegations;
+use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
+use lido_cosmos_validators_registry::registry::ValidatorResponse;
 
 pub fn execute_bond(
     mut deps: DepsMut,

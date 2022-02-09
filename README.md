@@ -1,8 +1,8 @@
-# Lido Terra Contracts
+# Lido Cosmos Hub Contracts
 
-This monorepository contains the source code for the smart contracts implementing bAsset Protocol on the [Terra](https://terra.money) blockchain.
+This monorepository contains the source code for the smart contracts implementing Lido Cosmos Liquid Staking Protocol on the [Cosmos Hub](https://hub.cosmos.network) blockchain.
 
-You can find information about the architecture, usage, and function of the smart contracts on the official documentation [site](https://lidofinance.github.io/terra-docs/).
+You can find information about the architecture, usage, and function of the smart contracts on the official documentation [site](https://lidofinance.github.io/cosmos-docs/).
 
 
 ## Contracts
@@ -14,7 +14,7 @@ You can find information about the architecture, usage, and function of the smar
 
 ### Environment Setup
 
-- Rust v1.55.0+
+- Rust v1.58.0+
 - `wasm32-unknown-unknown` target
 - Docker
 
@@ -55,7 +55,7 @@ This performs several optimizations which can significantly reduce the final siz
 
 ## Documentation
 
-Check you the documentation at https://lidofinance.github.io/terra-docs/.
+Check you the documentation at https://lidofinance.github.io/cosmos-docs/.
 
 ## License
 

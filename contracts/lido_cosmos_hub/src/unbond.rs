@@ -24,8 +24,8 @@ use cosmwasm_std::{
     StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use lido_terra_validators_registry::common::calculate_undelegations;
-use lido_terra_validators_registry::registry::ValidatorResponse;
+use lido_cosmos_validators_registry::common::calculate_undelegations;
+use lido_cosmos_validators_registry::registry::ValidatorResponse;
 use signed_integer::SignedInt;
 
 pub fn execute_withdraw_unbonded(
