@@ -34,7 +34,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let conf = Config {
-        owner: deps.api.addr_validate(info.sender.as_str())?,
+        owner: info.sender,
         hub_contract: deps.api.addr_validate(&msg.hub_contract)?,
         statom_reward_denom: msg.statom_reward_denom,
         lido_fee_address: deps.api.addr_validate(&msg.lido_fee_address)?,

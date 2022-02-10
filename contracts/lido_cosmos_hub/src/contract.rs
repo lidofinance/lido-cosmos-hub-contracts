@@ -46,11 +46,10 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let sender = info.sender;
-    let sndr_raw = deps.api.addr_validate(sender.as_str())?;
 
     // store config
     let data = Config {
-        creator: sndr_raw,
+        creator: sender,
         reward_dispatcher_contract: None,
         validators_registry_contract: None,
         statom_token_contract: None,
@@ -143,7 +142,7 @@ pub fn execute_redelegate_proxy(
     src_validator: String,
     redelegations: Vec<(String, Coin)>,
 ) -> StdResult<Response> {
-    let sender_contract_addr = deps.api.addr_validate(info.sender.as_str())?;
+    let sender_contract_addr = info.sender;
     let conf = CONFIG.load(deps.storage)?;
     let validators_registry_contract = conf.validators_registry_contract.ok_or_else(|| {
         StdError::generic_err("the validator registry contract must have been registered")
