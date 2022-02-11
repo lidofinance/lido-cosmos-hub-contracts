@@ -31,7 +31,7 @@ pub fn execute_update_params(
 ) -> StdResult<Response> {
     // only owner can send this message.
     let config = CONFIG.load(deps.storage)?;
-    let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
+    let sender_raw = info.sender;
     if sender_raw != config.creator {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -65,7 +65,7 @@ pub fn execute_update_config(
 ) -> StdResult<Response> {
     // only owner must be able to send this message.
     let conf = CONFIG.load(deps.storage)?;
-    let sender_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
+    let sender_raw = info.sender;
     if sender_raw != conf.creator {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -73,7 +73,7 @@ pub fn execute_update_config(
     let mut messages: Vec<CosmosMsg> = vec![];
 
     if let Some(o) = owner {
-        let owner_raw = deps.api.addr_canonicalize(&o)?;
+        let owner_raw = deps.api.addr_validate(&o)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.creator = owner_raw;
@@ -81,7 +81,7 @@ pub fn execute_update_config(
         })?;
     }
     if let Some(reward) = rewards_dispatcher_contract {
-        let reward_raw = deps.api.addr_canonicalize(&reward)?;
+        let reward_raw = deps.api.addr_validate(&reward)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.reward_dispatcher_contract = Some(reward_raw);
@@ -95,7 +95,7 @@ pub fn execute_update_config(
     }
 
     if let Some(token) = statom_token_contract {
-        let token_raw = deps.api.addr_canonicalize(&token)?;
+        let token_raw = deps.api.addr_validate(&token)?;
 
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             if last_config.statom_token_contract.is_some() {
@@ -110,7 +110,7 @@ pub fn execute_update_config(
     }
 
     if let Some(validators_registry) = validators_registry_contract {
-        let validators_raw = deps.api.addr_canonicalize(&validators_registry)?;
+        let validators_raw = deps.api.addr_validate(&validators_registry)?;
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.validators_registry_contract = Some(validators_raw);
             Ok(last_config)

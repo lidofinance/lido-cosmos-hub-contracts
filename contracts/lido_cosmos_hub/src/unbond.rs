@@ -315,11 +315,9 @@ pub(crate) fn execute_unbond_statom(
 
     // Send Burn message to token contract
     let config = CONFIG.load(deps.storage)?;
-    let token_address =
-        deps.api
-            .addr_humanize(&config.statom_token_contract.ok_or_else(|| {
-                StdError::generic_err("the token contract must have been registered")
-            })?)?;
+    let token_address = config
+        .statom_token_contract
+        .ok_or_else(|| StdError::generic_err("the token contract must have been registered"))?;
 
     let burn_msg = Cw20ExecuteMsg::Burn { amount };
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {

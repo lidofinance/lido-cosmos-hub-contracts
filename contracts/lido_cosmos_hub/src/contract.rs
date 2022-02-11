@@ -46,11 +46,10 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let sender = info.sender;
-    let sndr_raw = deps.api.addr_canonicalize(sender.as_str())?;
 
     // store config
     let data = Config {
-        creator: sndr_raw,
+        creator: sender,
         reward_dispatcher_contract: None,
         validators_registry_contract: None,
         statom_token_contract: None,
@@ -143,7 +142,7 @@ pub fn execute_redelegate_proxy(
     src_validator: String,
     redelegations: Vec<(String, Coin)>,
 ) -> StdResult<Response> {
-    let sender_contract_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let sender_contract_addr = info.sender;
     let conf = CONFIG.load(deps.storage)?;
     let validators_registry_contract = conf.validators_registry_contract.ok_or_else(|| {
         StdError::generic_err("the validator registry contract must have been registered")
@@ -177,7 +176,7 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
-    let contract_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let contract_addr = deps.api.addr_validate(info.sender.as_str())?;
 
     // only token contract can execute this message
     let conf = CONFIG.load(deps.storage)?;
@@ -210,11 +209,9 @@ pub fn execute_dispatch_rewards(
     let mut messages: Vec<CosmosMsg> = vec![];
 
     let config = CONFIG.load(deps.storage)?;
-    let reward_addr_dispatcher =
-        deps.api
-            .addr_humanize(&config.reward_dispatcher_contract.ok_or_else(|| {
-                StdError::generic_err("the reward contract must have been registered")
-            })?)?;
+    let reward_addr_dispatcher = config
+        .reward_dispatcher_contract
+        .ok_or_else(|| StdError::generic_err("the reward contract must have been registered"))?;
 
     // Send withdraw message
     let mut withdraw_msgs = withdraw_all_rewards(&deps, env.contract.address.to_string())?;
@@ -333,29 +330,17 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let mut validators_contract: Option<String> = None;
     let mut statom_token: Option<String> = None;
     if config.reward_dispatcher_contract.is_some() {
-        reward_dispatcher = Some(
-            deps.api
-                .addr_humanize(&config.reward_dispatcher_contract.unwrap())?
-                .to_string(),
-        );
+        reward_dispatcher = Some(config.reward_dispatcher_contract.unwrap().to_string());
     }
     if config.statom_token_contract.is_some() {
-        statom_token = Some(
-            deps.api
-                .addr_humanize(&config.statom_token_contract.unwrap())?
-                .to_string(),
-        );
+        statom_token = Some(config.statom_token_contract.unwrap().to_string());
     }
     if config.validators_registry_contract.is_some() {
-        validators_contract = Some(
-            deps.api
-                .addr_humanize(&config.validators_registry_contract.unwrap())?
-                .to_string(),
-        );
+        validators_contract = Some(config.validators_registry_contract.unwrap().to_string());
     }
 
     Ok(ConfigResponse {
-        owner: deps.api.addr_humanize(&config.creator)?.to_string(),
+        owner: config.creator.to_string(),
         reward_dispatcher_contract: reward_dispatcher,
         validators_registry_contract: validators_contract,
         statom_token_contract: statom_token,
@@ -402,12 +387,10 @@ fn query_params(deps: Deps) -> StdResult<Parameters> {
 }
 
 pub(crate) fn query_total_statom_issued(deps: Deps) -> StdResult<Uint128> {
-    let token_address = deps.api.addr_humanize(
-        &CONFIG
-            .load(deps.storage)?
-            .statom_token_contract
-            .ok_or_else(|| StdError::generic_err("token contract must have been registered"))?,
-    )?;
+    let token_address = CONFIG
+        .load(deps.storage)?
+        .statom_token_contract
+        .ok_or_else(|| StdError::generic_err("token contract must have been registered"))?;
     let token_info: TokenInfoResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: token_address.to_string(),

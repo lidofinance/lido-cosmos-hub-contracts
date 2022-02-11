@@ -2233,7 +2233,7 @@ pub fn proper_update_config() {
     assert_eq!(res.messages.len(), 0);
 
     let config = CONFIG.load(&deps.storage).unwrap();
-    let new_owner_raw = deps.api.addr_canonicalize(&new_owner).unwrap();
+    let new_owner_raw = deps.api.addr_validate(&new_owner).unwrap();
     assert_eq!(new_owner_raw, config.creator);
 
     // new owner can send the owner related messages

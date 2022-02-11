@@ -1,6 +1,6 @@
 // Copyright 2021 Lido
 //
-// Licensedicensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
@@ -35,10 +35,7 @@ pub fn instantiate(
     info: MessageInfo,
     msg: TokenInitMsg,
 ) -> Result<Response, ContractError> {
-    HUB_CONTRACT.save(
-        deps.storage,
-        &deps.api.addr_canonicalize(&msg.hub_contract)?,
-    )?;
+    HUB_CONTRACT.save(deps.storage, &deps.api.addr_validate(&msg.hub_contract)?)?;
 
     cw20_init(
         deps,
