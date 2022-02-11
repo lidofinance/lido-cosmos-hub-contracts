@@ -15,7 +15,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 use cw20_base::allowances::{execute_decrease_allowance, execute_increase_allowance};
 use cw20_base::contract::instantiate as cw20_init;
@@ -25,6 +25,7 @@ use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::handler::*;
 use crate::msg::TokenInitMsg;
 use crate::state::HUB_CONTRACT;
+use basset::hub::is_paused;
 use cw20::MinterResponse;
 use cw20_base::ContractError;
 
@@ -64,6 +65,11 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let hub_addr: Addr = HUB_CONTRACT.load(deps.storage)?;
+    if is_paused(deps.as_ref(), hub_addr.into_string())? {
+        return Err(ContractError::Unauthorized {});
+    }
+
     match msg {
         ExecuteMsg::Transfer { recipient, amount } => {
             execute_transfer(deps, env, info, recipient, amount)

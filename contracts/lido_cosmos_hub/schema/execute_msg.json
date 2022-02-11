@@ -59,12 +59,6 @@
               "format": "uint64",
               "minimum": 0.0
             },
-            "paused": {
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
             "unbonding_period": {
               "type": [
                 "integer",
@@ -74,6 +68,32 @@
               "minimum": 0.0
             }
           }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Pauses the contracts. Only the owner or allowed guardians can pause the contracts",
+      "type": "object",
+      "required": [
+        "pause_contracts"
+      ],
+      "properties": {
+        "pause_contracts": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Unpauses the contracts. Only the owner allowed to unpause the contracts",
+      "type": "object",
+      "required": [
+        "unpause_contracts"
+      ],
+      "properties": {
+        "unpause_contracts": {
+          "type": "object"
         }
       },
       "additionalProperties": false
@@ -187,6 +207,54 @@
             },
             "src_validator": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Adds a list of addresses to a whitelist of guardians which can pause (but not unpause) the contracts",
+      "type": "object",
+      "required": [
+        "add_guardians"
+      ],
+      "properties": {
+        "add_guardians": {
+          "type": "object",
+          "required": [
+            "addresses"
+          ],
+          "properties": {
+            "addresses": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Removes a list of a addresses from a whitelist of guardians which can pause (but not unpause) the contracts",
+      "type": "object",
+      "required": [
+        "remove_guardians"
+      ],
+      "properties": {
+        "remove_guardians": {
+          "type": "object",
+          "required": [
+            "addresses"
+          ],
+          "properties": {
+            "addresses": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           }
         }

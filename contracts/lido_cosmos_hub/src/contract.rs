@@ -14,17 +14,18 @@
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
+use std::string::FromUtf8Error;
 
 use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128, WasmMsg,
-    WasmQuery,
+    Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128,
+    WasmMsg, WasmQuery,
 };
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::state::{
     all_unbond_history, get_unbond_requests, query_get_finished_amount, CONFIG, CURRENT_BATCH,
-    PARAMETERS, STATE,
+    GUARDIANS, PARAMETERS, STATE,
 };
 use crate::unbond::{execute_unbond_statom, execute_withdraw_unbonded};
 
@@ -88,20 +89,6 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
-    if let ExecuteMsg::UpdateParams {
-        epoch_period,
-        unbonding_period,
-        paused,
-    } = msg
-    {
-        return execute_update_params(deps, env, info, epoch_period, unbonding_period, paused);
-    }
-
-    let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
-        return Err(StdError::generic_err("the contract is temporarily paused"));
-    }
-
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::BondForStAtom {} => execute_bond(deps, env, info, BondType::StAtom),
@@ -112,8 +99,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::UpdateParams {
             epoch_period,
             unbonding_period,
-            paused,
-        } => execute_update_params(deps, env, info, epoch_period, unbonding_period, paused),
+        } => execute_update_params(deps, env, info, epoch_period, unbonding_period),
         ExecuteMsg::UpdateConfig {
             owner,
             rewards_dispatcher_contract,
@@ -132,7 +118,87 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             src_validator,
             redelegations,
         } => execute_redelegate_proxy(deps, env, info, src_validator, redelegations),
+        ExecuteMsg::PauseContracts {} => execute_pause_contracts(deps, env, info),
+        ExecuteMsg::UnpauseContracts {} => execute_unpause_contracts(deps, env, info),
+        ExecuteMsg::AddGuardians { addresses } => execute_add_guardians(deps, env, info, addresses),
+        ExecuteMsg::RemoveGuardians { addresses } => {
+            execute_remove_guardians(deps, env, info, addresses)
+        }
     }
+}
+
+pub fn execute_add_guardians(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    guardians: Vec<String>,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.creator {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    for guardian in &guardians {
+        GUARDIANS.save(deps.storage, guardian.clone(), &true)?;
+    }
+
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "add_guardians")])
+        .add_attributes(guardians.iter().map(|g| attr("value", g))))
+}
+
+pub fn execute_remove_guardians(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    guardians: Vec<String>,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.creator {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    for guardian in &guardians {
+        GUARDIANS.remove(deps.storage, guardian.clone());
+    }
+
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "remove_guardians")])
+        .add_attributes(guardians.iter().map(|g| attr("value", g))))
+}
+
+pub fn execute_pause_contracts(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    if !(info.sender == config.creator || GUARDIANS.has(deps.storage, info.sender.to_string())) {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let mut params: Parameters = PARAMETERS.load(deps.storage)?;
+    params.paused = Some(true);
+
+    PARAMETERS.save(deps.storage, &params)?;
+
+    let res = Response::new().add_attributes(vec![attr("action", "pause_contracts")]);
+    Ok(res)
+}
+
+pub fn execute_unpause_contracts(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.creator {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let mut params: Parameters = PARAMETERS.load(deps.storage)?;
+    params.paused = Some(false);
+
+    PARAMETERS.save(deps.storage, &params)?;
+
+    let res = Response::new().add_attributes(vec![attr("action", "unpause_contracts")]);
+    Ok(res)
 }
 
 pub fn execute_redelegate_proxy(
@@ -176,6 +242,11 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     let contract_addr = deps.api.addr_validate(info.sender.as_str())?;
 
     // only token contract can execute this message
@@ -206,7 +277,10 @@ pub fn execute_dispatch_rewards(
     env: Env,
     _info: MessageInfo,
 ) -> StdResult<Response> {
-    let mut messages: Vec<CosmosMsg> = vec![];
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
 
     let config = CONFIG.load(deps.storage)?;
     let reward_addr_dispatcher = config
@@ -215,6 +289,7 @@ pub fn execute_dispatch_rewards(
 
     // Send withdraw message
     let mut withdraw_msgs = withdraw_all_rewards(&deps, env.contract.address.to_string())?;
+    let mut messages: Vec<CosmosMsg> = vec![];
     messages.append(&mut withdraw_msgs);
 
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -296,6 +371,11 @@ pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
 
 /// Handler for tracking slashing
 pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+    if params.paused.unwrap_or(false) {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
+
     // call slashing and
     let state = slashing(&mut deps, env)?;
     Ok(Response::new().add_attributes(vec![
@@ -321,7 +401,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::AllHistory { start_from, limit } => {
             to_binary(&query_unbond_requests_limitation(deps, start_from, limit)?)
         }
+        QueryMsg::Guardians => to_binary(&query_guardians(deps)?),
     }
+}
+
+fn query_guardians(deps: Deps) -> StdResult<Vec<String>> {
+    let guardians = GUARDIANS.keys(deps.storage, None, None, Order::Ascending);
+    let guardians_decoded: Result<Vec<String>, FromUtf8Error> =
+        guardians.map(String::from_utf8).collect();
+    Ok(guardians_decoded?)
 }
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {

@@ -1,4 +1,6 @@
-use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
+use cosmwasm_std::{
+    to_binary, Addr, Coin, Decimal, Deps, QueryRequest, StdResult, Uint128, WasmQuery,
+};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -69,8 +71,13 @@ pub enum ExecuteMsg {
     UpdateParams {
         epoch_period: Option<u64>,
         unbonding_period: Option<u64>,
-        paused: Option<bool>,
     },
+
+    /// Pauses the contracts. Only the owner or allowed guardians can pause the contracts
+    PauseContracts {},
+
+    /// Unpauses the contracts. Only the owner allowed to unpause the contracts
+    UnpauseContracts {},
 
     ////////////////////
     /// User's operations
@@ -108,6 +115,16 @@ pub enum ExecuteMsg {
         // delegator is automatically set to address of the calling contract
         src_validator: String,
         redelegations: Vec<(String, Coin)>, //(dst_validator, amount)
+    },
+
+    /// Adds a list of addresses to a whitelist of guardians which can pause (but not unpause) the contracts
+    AddGuardians {
+        addresses: Vec<String>,
+    },
+
+    /// Removes a list of a addresses from a whitelist of guardians which can pause (but not unpause) the contracts
+    RemoveGuardians {
+        addresses: Vec<String>,
     },
 }
 
@@ -217,4 +234,14 @@ pub enum QueryMsg {
         start_from: Option<u64>,
         limit: Option<u32>,
     },
+    Guardians,
+}
+
+pub fn is_paused(deps: Deps, hub_addr: String) -> StdResult<bool> {
+    let params: Parameters = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: hub_addr,
+        msg: to_binary(&QueryMsg::Parameters {})?,
+    }))?;
+
+    Ok(params.paused.unwrap_or(false))
 }

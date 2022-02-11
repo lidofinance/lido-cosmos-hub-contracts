@@ -27,7 +27,6 @@ pub fn execute_update_params(
     info: MessageInfo,
     epoch_period: Option<u64>,
     unbonding_period: Option<u64>,
-    paused: Option<bool>,
 ) -> StdResult<Response> {
     // only owner can send this message.
     let config = CONFIG.load(deps.storage)?;
@@ -42,7 +41,7 @@ pub fn execute_update_params(
         epoch_period: epoch_period.unwrap_or(params.epoch_period),
         underlying_coin_denom: params.underlying_coin_denom,
         unbonding_period: unbonding_period.unwrap_or(params.unbonding_period),
-        paused,
+        paused: params.paused,
     };
 
     PARAMETERS.save(deps.storage, &new_params)?;
