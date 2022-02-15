@@ -22,7 +22,7 @@ use cosmwasm_std::{
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
-use basset::hub::ExecuteMsg::BondRewards;
+use basset::hub::{is_paused, ExecuteMsg::BondRewards};
 use basset::{compute_lido_fee, deduct_tax};
 use terra_cosmwasm::TerraMsgWrapper;
 
@@ -85,7 +85,7 @@ pub fn execute_update_config(
     lido_fee_address: Option<String>,
     lido_fee_rate: Option<Decimal>,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let conf = CONFIG.load(deps.storage)?;
+    let conf: Config = CONFIG.load(deps.storage)?;
     let sender_raw = deps.api.addr_validate(info.sender.as_str())?;
     if sender_raw != conf.owner {
         return Err(StdError::generic_err("unauthorized"));
@@ -139,7 +139,10 @@ pub fn execute_dispatch_rewards(
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let config = CONFIG.load(deps.storage)?;
+    let config: Config = CONFIG.load(deps.storage)?;
+    if is_paused(deps.as_ref(), config.hub_contract.clone().into_string())? {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
+    }
 
     let hub_addr = config.hub_contract;
     if info.sender != hub_addr {
