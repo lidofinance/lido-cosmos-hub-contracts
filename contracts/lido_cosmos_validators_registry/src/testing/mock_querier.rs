@@ -15,19 +15,18 @@
 use crate::registry::ValidatorResponse as RegistryValidator;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
-    from_slice, to_binary, Coin, ContractResult, FullDelegation, OwnedDeps, Querier, QuerierResult,
-    QueryRequest, SystemError, Uint128, Validator, WasmQuery, CustomQuery
+    from_slice, to_binary, Coin, ContractResult, CustomQuery, FullDelegation, OwnedDeps, Querier,
+    QuerierResult, QueryRequest, SystemError, Uint128, Validator, WasmQuery,
 };
-use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
 use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct CustomQueryWrapper {
-}
+pub struct CustomQueryWrapper {}
 
 // implement custom query
 impl CustomQuery for CustomQueryWrapper {}

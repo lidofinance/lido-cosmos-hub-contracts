@@ -45,12 +45,7 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    msg: ExecuteMsg,
-) -> StdResult<Response> {
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::DispatchRewards {} => execute_dispatch_rewards(deps, env, info),
         ExecuteMsg::UpdateConfig {
@@ -132,11 +127,7 @@ pub fn execute_update_config(
     Ok(Response::default())
 }
 
-pub fn execute_dispatch_rewards(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-) -> StdResult<Response> {
+pub fn execute_dispatch_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config: Config = CONFIG.load(deps.storage)?;
     if is_paused(deps.as_ref(), config.hub_contract.clone().into_string())? {
         return Err(StdError::generic_err("the contract is temporarily paused"));

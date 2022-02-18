@@ -15,8 +15,8 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, to_vec, Addr, AllBalanceResponse, Api, BalanceResponse,
-    BankQuery, Coin, ContractResult, CustomQuery, Empty, FullDelegation, OwnedDeps,
-    Querier, QuerierResult, QueryRequest, StdError, StdResult, SystemError, SystemResult, Uint128,
+    BankQuery, Coin, ContractResult, CustomQuery, Empty, FullDelegation, OwnedDeps, Querier,
+    QuerierResult, QueryRequest, StdError, StdResult, SystemError, SystemResult, Uint128,
     Validator, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
@@ -26,17 +26,16 @@ use std::collections::HashMap;
 
 use basset::hub::Config;
 use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg};
-use serde::de::DeserializeOwned;
-use serde::{Serialize, Deserialize};
 use schemars::JsonSchema;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 pub const VALIDATORS_REGISTRY: &str = "validators_registry";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct CustomQueryWrapper {
-}
+pub struct CustomQueryWrapper {}
 
 // implement custom query
 impl CustomQuery for CustomQueryWrapper {}

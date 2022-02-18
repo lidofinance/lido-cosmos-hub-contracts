@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use basset::hub::{Parameters, QueryMsg};
-use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR,};
+use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_slice, to_binary, Coin, ContractResult, OwnedDeps, Querier, QuerierResult,
-    QueryRequest, SystemError, SystemResult, WasmQuery, CustomQuery
+    from_slice, to_binary, Coin, ContractResult, CustomQuery, OwnedDeps, Querier, QuerierResult,
+    QueryRequest, SystemError, SystemResult, WasmQuery,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -26,8 +26,7 @@ pub const MOCK_LIDO_FEE_ADDRESS: &str = "lido_fee";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct CustomQueryWrapper {
-}
+pub struct CustomQueryWrapper {}
 
 // implement custom query
 impl CustomQuery for CustomQueryWrapper {}
