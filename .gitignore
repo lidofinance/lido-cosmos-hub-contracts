@@ -1,5 +1,6 @@
 # Build results
 /target
+/artifacts/checksums_intermediate.txt
 
 /deployment_scripts/node_modules
 

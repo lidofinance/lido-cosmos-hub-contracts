@@ -16,13 +16,21 @@ use crate::registry::ValidatorResponse as RegistryValidator;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
     from_slice, to_binary, Coin, ContractResult, FullDelegation, OwnedDeps, Querier, QuerierResult,
-    QueryRequest, SystemError, Uint128, Validator, WasmQuery,
+    QueryRequest, SystemError, Uint128, Validator, WasmQuery, CustomQuery
 };
 use std::collections::HashMap;
-
-use terra_cosmwasm::TerraQueryWrapper;
+use serde::{Serialize, Deserialize};
+use schemars::JsonSchema;
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct CustomQueryWrapper {
+}
+
+// implement custom query
+impl CustomQuery for CustomQueryWrapper {}
 
 pub fn mock_dependencies(
     contract_balance: &[Coin],
@@ -39,14 +47,14 @@ pub fn mock_dependencies(
 }
 
 pub struct WasmMockQuerier {
-    base: MockQuerier<TerraQueryWrapper>,
+    base: MockQuerier<CustomQueryWrapper>,
     validators: Vec<RegistryValidator>,
 }
 
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
         // MockQuerier doesn't support Custom, so we ignore it completely here
-        let request: QueryRequest<TerraQueryWrapper> = match from_slice(bin_request) {
+        let request: QueryRequest<CustomQueryWrapper> = match from_slice(bin_request) {
             Ok(v) => v,
             Err(e) => {
                 return QuerierResult::Err(SystemError::InvalidRequest {
@@ -60,7 +68,7 @@ impl Querier for WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn handle_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
+    pub fn handle_query(&self, request: &QueryRequest<CustomQueryWrapper>) -> QuerierResult {
         match &request {
             QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: _,
@@ -94,7 +102,7 @@ pub struct TokenQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn new(base: MockQuerier<TerraQueryWrapper>) -> Self {
+    pub fn new(base: MockQuerier<CustomQueryWrapper>) -> Self {
         WasmMockQuerier {
             base,
             validators: vec![],
