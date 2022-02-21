@@ -143,7 +143,7 @@ pub fn execute_dispatch_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> S
         .querier
         .query_balance(contr_addr, config.statom_reward_denom.clone())?;
 
-    let lido_statom_fee_amount = compute_lido_fee(statom_rewards.amount, config.lido_fee_rate)?;
+    let lido_statom_fee_amount = compute_lido_fee(statom_rewards.amount, config.lido_fee_rate);
     statom_rewards.amount = statom_rewards.amount.checked_sub(lido_statom_fee_amount)?;
 
     let mut fees_attrs: Vec<Attribute> = vec![];
@@ -202,6 +202,6 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Respons
     Ok(Response::default())
 }
 
-pub fn compute_lido_fee(amount: Uint128, fee_rate: Decimal) -> StdResult<Uint128> {
-    Ok(amount * fee_rate)
+pub fn compute_lido_fee(amount: Uint128, fee_rate: Decimal) -> Uint128 {
+    amount * fee_rate
 }

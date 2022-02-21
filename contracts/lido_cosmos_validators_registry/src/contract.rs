@@ -229,6 +229,7 @@ fn query_validators(deps: Deps) -> StdResult<Vec<ValidatorResponse>> {
             total_delegated: Default::default(),
             address: item?.1.address,
         };
+        // TODO: check that cosmos cosmwasm module has this bug or not
         // There is a bug in terra/core.
         // The bug happens when we do query_delegation() but there are no delegation pair (delegator-validator)
         // but query_delegation() fails with a parse error cause terra/core returns an empty FullDelegation struct
