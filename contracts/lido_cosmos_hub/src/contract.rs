@@ -135,32 +135,45 @@ pub fn receive_tokenized_share(
     info: MessageInfo,
     validator: String,
 ) -> StdResult<Response> {
+    // Check that the validator specified in the message is a whitelisted validator.
+    {
+        let validators_registry_contract = if let Some(v) = config.validators_registry_contract {
+            v
+        } else {
+            return Err(StdError::generic_err(
+                "Validators registry contract address is empty",
+            ));
+        };
+        let is_known_validator: bool =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: validators_registry_contract.to_string(),
+                msg: to_binary(&QueryValidators::HasValidator { address: validator.clone() })?,
+            }))?;
+        if !is_known_validator {
+            return Err(StdError::generic_err(
+                "Validator is not whitelisted",
+            ));
+        }
+    }
 
-    let voucher_denom = info
+    // Take all tokenized shares of the specified validator's delegations.
+    // Note: tokenized share denom looks like this:
+    // cosmosvaloper1qp49fdjtlsrv6jkx3gc8urp2ncg88s6mcversm12345, where 12345 is the recordId
+    // (see https://github.com/iqlusioninc/liquidity-staking-module/blob/master/x/staking/keeper/msg_server.go#L436)
+    let vouchers: Vec<Coin> = info
         .funds
         .iter()
-        .find(|x| x.denom.contains(validator.clone()) && x.amount > Uint128::zero())
-        .ok_or_else(|| {
-            StdError::generic_err(format!("No {} assets are provided to bond", coin_denom))
-        })?;
+        .filter(|x| x.denom.contains(validator.clone()) && x.amount > Uint128::zero())
+        .collect();
 
-    let validators_registry_contract = if let Some(v) = config.validators_registry_contract {
-        v
-    } else {
-        return Err(StdError::generic_err(
-            "Validators registry contract address is empty",
-        ));
-    };
-    let is_known_validator: bool =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: validators_registry_contract.to_string(),
-            msg: to_binary(&QueryValidators::HasValidator { address: validator })?,
-        }))?;
-    if !is_known_validator {
-        return Err(StdError::generic_err(
-            "Validator is not whitelisted",
-        ));
+    for voucher in vouchers {
+        let mut messages: Vec<CosmosMsg> = vec![];
+        messages.push(cosmwasm_std::CosmosMsg::Staking(StakingMsg::RedeemTokensforShares {
+            delegator_address: validator.clone(),
+            amount: voucher,
+        }));
     }
+
 
     Ok(Response::new())
 }
