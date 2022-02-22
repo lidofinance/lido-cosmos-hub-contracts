@@ -206,12 +206,17 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&validators)
         }
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::HasValidator { address } => to_binary(&query_has_validator(deps, address))
     }
 }
 
 fn query_config(deps: Deps) -> StdResult<Config> {
     let config = CONFIG.load(deps.storage)?;
     Ok(config)
+}
+
+fn query_has_validator(deps: Deps, address: String) -> bool {
+    REGISTRY.has(deps.storage, address.as_bytes())
 }
 
 fn query_validators(deps: Deps) -> StdResult<Vec<ValidatorResponse>> {

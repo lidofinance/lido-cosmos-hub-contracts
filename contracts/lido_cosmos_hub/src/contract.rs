@@ -28,6 +28,7 @@ use crate::state::{
     GUARDIANS, PARAMETERS, STATE,
 };
 use crate::unbond::{execute_unbond_statom, execute_withdraw_unbonded};
+use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
 
 use crate::bond::execute_bond;
 use basset::hub::{
@@ -124,7 +125,44 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::RemoveGuardians { addresses } => {
             execute_remove_guardians(deps, env, info, addresses)
         }
+        ExecuteMsg::ReceiveTokenizedShare {validator} => receive_tokenized_share(deps, env, info, validator)
     }
+}
+
+pub fn receive_tokenized_share(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    validator: String,
+) -> StdResult<Response> {
+
+    let voucher_denom = info
+        .funds
+        .iter()
+        .find(|x| x.denom.contains(validator.clone()) && x.amount > Uint128::zero())
+        .ok_or_else(|| {
+            StdError::generic_err(format!("No {} assets are provided to bond", coin_denom))
+        })?;
+
+    let validators_registry_contract = if let Some(v) = config.validators_registry_contract {
+        v
+    } else {
+        return Err(StdError::generic_err(
+            "Validators registry contract address is empty",
+        ));
+    };
+    let is_known_validator: bool =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: validators_registry_contract.to_string(),
+            msg: to_binary(&QueryValidators::HasValidator { address: validator })?,
+        }))?;
+    if !is_known_validator {
+        return Err(StdError::generic_err(
+            "Validator is not whitelisted",
+        ));
+    }
+
+    Ok(Response::new())
 }
 
 pub fn execute_add_guardians(

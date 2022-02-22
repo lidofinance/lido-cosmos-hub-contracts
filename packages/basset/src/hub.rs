@@ -126,6 +126,10 @@ pub enum ExecuteMsg {
     RemoveGuardians {
         addresses: Vec<String>,
     },
+
+    ReceiveTokenizedShare {
+        validator: String,
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
