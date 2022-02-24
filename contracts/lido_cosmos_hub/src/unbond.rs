@@ -33,17 +33,15 @@ pub fn execute_withdraw_unbonded(
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response> {
-    let sender_human = info.sender;
-    let contract_address = env.contract.address.clone();
-
-    // read params
     let params = PARAMETERS.load(deps.storage)?;
-    let unbonding_period = params.unbonding_period;
-    let coin_denom = params.underlying_coin_denom;
-
     if params.paused.unwrap_or(false) {
         return Err(StdError::generic_err("The contract is temporarily paused"));
     }
+    let sender_human = info.sender;
+    let contract_address = env.contract.address.clone();
+    let unbonding_period = params.unbonding_period;
+    let coin_denom = params.underlying_coin_denom;
+
     let historical_time = env.block.time.seconds() - unbonding_period;
 
     // query hub balance for process withdraw rate.
