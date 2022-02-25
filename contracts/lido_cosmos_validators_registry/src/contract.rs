@@ -206,7 +206,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&validators)
         }
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::HasValidator { address } => to_binary(&query_has_validator(deps, address))
+        QueryMsg::HasValidator { address } => to_binary(&query_has_validator(deps, address)),
     }
 }
 

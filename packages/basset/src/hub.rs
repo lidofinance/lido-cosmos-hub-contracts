@@ -129,7 +129,7 @@ pub enum ExecuteMsg {
 
     ReceiveTokenizedShare {
         validator: String,
-    }
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
