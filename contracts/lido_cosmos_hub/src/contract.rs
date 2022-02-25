@@ -171,7 +171,8 @@ pub fn receive_tokenized_share(
         .filter(|x| x.denom.contains(validator.clone()) && x.amount > Uint128::zero())
         .collect();
 
-    let res = Response::new();
+    let res =
+        Response::new().add_attributes(vec![attr("action", "bond_rewards"), attr("from", sender)]);
     for voucher in vouchers {
         let mut messages: Vec<CosmosMsg> = vec![];
         // Note: the RedeemTokensForShares message is not implemented yet.
@@ -229,17 +230,20 @@ pub fn receive_tokenized_share(
                 denom: voucher.denom.clone(),
             }))?;
 
-        // check slashing
+        // Check slashing & get the current exchange rate.
         let state = slashing(&mut deps, env)?;
 
-        let mint_amount = decimal_division(
-            Decimal::from_ratio(
-                voucher.amount.clone(),
-                user_tokenized_shares_balance.amount.amount,
-            )
-            .mul(delegation.amount.amount),
-            state.statom_exchange_rate,
-        );
+        // This is the amount of atom that the send tokenized coins equal to:
+        // (send tokenized coins / total user amount) * atom value of the
+        // full delegation.
+        let redeemed_tokens = Decimal::from_ratio(
+            voucher.amount.clone(),
+            user_tokenized_shares_balance.amount.amount,
+        )
+        .mul(delegation.amount.amount);
+
+        // This is the amount of stATOM tokens that should be minted.
+        let mint_amount = decimal_division(redeemed_tokens, state.statom_exchange_rate);
 
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: token_address.to_string(),
@@ -250,9 +254,18 @@ pub fn receive_tokenized_share(
             funds: vec![],
         }));
 
+        // Update the total bond amount.
+        STATE.update(deps.storage, |mut prev_state| -> StdResult<_> {
+            prev_state.total_bond_statom_amount += redeemed_tokens;
+            Ok(prev_state)
+        })?;
+
         res.add_attributes(vec![
-            attr("redeemed_denom", voucher.denom.clone()),
-            attr("redeemed_tokens_amount", delegation.amount.amount),
+            attr(
+                "{}_incoming_amount".format(voucher.denom.clone()),
+                voucher.amount.clone(),
+            ),
+            attr("{}_mint_amount".format(voucher.denom.clone()), mint_amount),
         ])
     }
 
