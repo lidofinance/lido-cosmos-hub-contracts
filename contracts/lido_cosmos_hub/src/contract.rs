@@ -245,7 +245,7 @@ pub fn receive_tokenized_share(
             contract_addr: token_address.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Mint {
                 recipient: info.sender.to_string(),
-                amount: delegation.amount.amount,
+                amount: mint_amount,
             })?,
             funds: vec![],
         }));
