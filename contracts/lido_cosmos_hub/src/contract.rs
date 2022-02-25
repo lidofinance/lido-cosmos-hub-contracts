@@ -17,10 +17,9 @@ use cosmwasm_std::entry_point;
 use std::string::FromUtf8Error;
 
 use cosmwasm_std::{
-    attr, from_binary, to_binary, AllDelegationsResponse, BalanceResponse, BankQuery, Binary, Coin,
-    CosmosMsg, Decimal, DelegationResponse, Deps, DepsMut, DistributionMsg, Env, FullDelegation,
-    MessageInfo, Order, QueryRequest, Response, StakingMsg, StakingQuery, StdError, StdResult,
-    Uint128, WasmMsg, WasmQuery,
+    attr, from_binary, to_binary, Binary, Coin, CosmosMsg, Decimal, DelegationResponse, Deps,
+    DepsMut, DistributionMsg, Env, MessageInfo, Order, QueryRequest, Response, StakingMsg,
+    StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 
 use crate::config::{execute_update_config, execute_update_params};
@@ -29,19 +28,17 @@ use crate::state::{
     GUARDIANS, PARAMETERS, STATE,
 };
 use crate::unbond::{execute_unbond_statom, execute_withdraw_unbonded};
-use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
 
 use crate::bond::execute_bond;
-use crate::math::decimal_division;
+use crate::tokenized::receive_tokenized_share;
 use basset::hub::{
     AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
     InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondHistoryResponse,
     UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
-use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
+use cw20::{Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
 use lido_cosmos_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
-use std::ops::Mul;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -132,144 +129,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             receive_tokenized_share(deps, env, info, validator)
         }
     }
-}
-
-pub fn receive_tokenized_share(
-    mut deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    validator: String,
-) -> StdResult<Response> {
-    // Check that the validator specified in the message is a whitelisted validator.
-    {
-        let validators_registry_contract = if let Some(v) = config.validators_registry_contract {
-            v
-        } else {
-            return Err(StdError::generic_err(
-                "Validators registry contract address is empty",
-            ));
-        };
-        let is_known_validator: bool =
-            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: validators_registry_contract.to_string(),
-                msg: to_binary(&QueryValidators::HasValidator {
-                    address: validator.clone(),
-                })?,
-            }))?;
-        if !is_known_validator {
-            return Err(StdError::generic_err("Validator is not whitelisted"));
-        }
-    }
-
-    // Take all tokenized shares of the specified validator's delegations.
-    // Note: tokenized share denom looks like this:
-    // cosmosvaloper1qp49fdjtlsrv6jkx3gc8urp2ncg88s6mcversm12345, where 12345 is the recordId
-    // (see https://github.com/iqlusioninc/liquidity-staking-module/blob/master/x/staking/keeper/msg_server.go#L436)
-    let vouchers: Vec<Coin> = info
-        .funds
-        .iter()
-        .filter(|x| x.denom.contains(validator.clone()) && x.amount > Uint128::zero())
-        .collect();
-
-    let res =
-        Response::new().add_attributes(vec![attr("action", "bond_rewards"), attr("from", sender)]);
-    for voucher in vouchers {
-        let mut messages: Vec<CosmosMsg> = vec![];
-        // Note: the RedeemTokensForShares message is not implemented yet.
-        messages.push(cosmwasm_std::CosmosMsg::Staking(
-            StakingMsg::RedeemTokensForShares {
-                delegator_address: validator.clone(),
-                amount: voucher,
-            },
-        ));
-
-        // Unfortunately, the response for RedeemTokensForShares does not contain any
-        // information at all, so we'll need to calculate the returned amount ourselves.
-
-        // We need to get the tokenized share module account somehow to query for the
-        // delegation. The module account is recorded as fmt.Sprintf("tokenizeshare_%d", recordId)
-        // during the creation of a share, ad there is no direct way to get tokenizedShareRecord
-        // from the liquid staking module, so we'll need to extract it from token denom
-        // in a dirty way.
-        let delegator =
-            if let Some(acc) = voucher.denom.clone().split(validator.clone()).next_back() {
-                acc
-            } else {
-                return Err(StdError::generic_err(
-                    "Failed to get recordId from tokenized share {}".format(voucher.denom.clone()),
-                ));
-            };
-
-        // Now we need to get the delegation info. The .amount field contains the amount of
-        // tokens that is calculated using the corresponding amount of shares (see
-        // https://github.com/CosmWasm/wasmd/blob/master/x/wasm/keeper/query_plugins.go#L397)
-        let delegation_response: DelegationResponse =
-            deps.querier
-                .query(&QueryRequest::Staking(StakingQuery::Delegation {
-                    delegator: delegator.to_string(),
-                    validator: validator.clone(),
-                }))?;
-
-        let delegation: FullDelegation = if let Some(d) = delegation_response.delegation {
-            d
-        } else {
-            return Err(StdError::generic_err(
-                "Failed to find delegation for {}".format(voucher.denom.clone()),
-            ));
-        };
-
-        // Now we have access to the .amount field, which tells us the **total** amount of
-        // tokens that can be currently redeemed. There is no guarantee, though, that the
-        // user sends us the full amount of tokenized shares, so we need to understand which
-        // fraction of the **total** amount we are redeeming: this can be calculated as
-        // the ratio of the sent amount to the user's total balance of the tokenized denom.
-
-        let user_tokenized_shares_balance: BalanceResponse =
-            deps.querier.query(&QueryRequest::Bank(BankQuery::Balance {
-                address: info.sender.to_string(),
-                denom: voucher.denom.clone(),
-            }))?;
-
-        // Check slashing & get the current exchange rate.
-        let state = slashing(&mut deps, env)?;
-
-        // This is the amount of atom that the send tokenized coins equal to:
-        // (send tokenized coins / total user amount) * atom value of the
-        // full delegation.
-        let redeemed_tokens = Decimal::from_ratio(
-            voucher.amount.clone(),
-            user_tokenized_shares_balance.amount.amount,
-        )
-        .mul(delegation.amount.amount);
-
-        // This is the amount of stATOM tokens that should be minted.
-        let mint_amount = decimal_division(redeemed_tokens, state.statom_exchange_rate);
-
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: token_address.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Mint {
-                recipient: info.sender.to_string(),
-                amount: mint_amount,
-            })?,
-            funds: vec![],
-        }));
-
-        // Update the total bond amount.
-        STATE.update(deps.storage, |mut prev_state| -> StdResult<_> {
-            prev_state.total_bond_statom_amount += redeemed_tokens;
-            Ok(prev_state)
-        })?;
-
-        res.add_attributes(vec![
-            attr(
-                "{}_incoming_amount".format(voucher.denom.clone()),
-                voucher.amount.clone(),
-            ),
-            attr("{}_mint_amount".format(voucher.denom.clone()), mint_amount),
-        ])
-    }
-
-    Ok(Response::new())
 }
 
 pub fn execute_add_guardians(

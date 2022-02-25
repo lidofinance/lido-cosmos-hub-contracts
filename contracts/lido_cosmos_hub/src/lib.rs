@@ -18,6 +18,7 @@ pub mod state;
 mod bond;
 mod config;
 mod math;
+mod tokenized;
 mod unbond;
 
 #[cfg(test)]
