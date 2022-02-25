@@ -16,11 +16,7 @@
 use cosmwasm_std::entry_point;
 use std::string::FromUtf8Error;
 
-use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128,
-    WasmMsg, WasmQuery,
-};
+use cosmwasm_std::{attr, from_binary, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, DistributionMsg, Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128, WasmMsg, WasmQuery, StakingQuery, DelegationResponse, AllDelegationsResponse, FullDelegation};
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::state::{
@@ -168,10 +164,45 @@ pub fn receive_tokenized_share(
 
     for voucher in vouchers {
         let mut messages: Vec<CosmosMsg> = vec![];
-        messages.push(cosmwasm_std::CosmosMsg::Staking(StakingMsg::RedeemTokensforShares {
+        // Note: the RedeemTokensForShares message is not implemented yet.
+        messages.push(cosmwasm_std::CosmosMsg::Staking(StakingMsg::RedeemTokensForShares {
             delegator_address: validator.clone(),
             amount: voucher,
         }));
+
+        // Unfortunately, the response for RedeemTokensForShares does not contain any
+        // information at all, so we'll need to calculate the returned amount ourselves.
+
+        // We need to get the tokenized share module account somehow to query for the
+        // delegation. The module account is recorded as fmt.Sprintf("tokenizeshare_%d", recordId)
+        // during the creation of a share, ad there is no direct way to get tokenizedShareRecord
+        // from the liquid staking module, so we'll need to extract it from token denom
+        // in a dirty way.
+        let delegator = if let Some(acc) = voucher.denom.clone()
+            .split(validator.clone())
+            .next_back() {
+            acc
+        } else {
+            return Err(StdError::generic_err(
+                "Failed to get recordId from tokenized share {}".format(voucher.denom.clone()),
+            ));
+        };
+
+        // Now we need to get the delegation info.
+        let delegation_response: DelegationResponse = deps.querier.query(&QueryRequest::Staking(StakingQuery::Delegation {
+            delegator: delegator.to_string(),
+            validator: validator.clone(),
+        }))?;
+
+        let delegation: FullDelegation = if let Some(d) = delegation_response.delegation {
+            d
+        } else {
+            return Err(StdError::generic_err(
+                "Failed to find delegation for {}".format(voucher.denom.clone()),
+            ));
+        };
+
+
     }
 
 
