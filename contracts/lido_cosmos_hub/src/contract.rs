@@ -144,7 +144,7 @@ pub fn execute_add_guardians(
 
     Ok(Response::new()
         .add_attributes(vec![attr("action", "add_guardians")])
-        .add_attributes(guardians.iter().map(|g| attr("value", g))))
+        .add_attributes(guardians.iter().map(|g| attr("address", g))))
 }
 
 pub fn execute_remove_guardians(
@@ -214,7 +214,8 @@ pub fn execute_redelegate_proxy(
         StdError::generic_err("the validator registry contract must have been registered")
     })?;
 
-    if sender_contract_addr != validators_registry_contract && sender_contract_addr != conf.creator
+    if !(sender_contract_addr == validators_registry_contract
+        || sender_contract_addr == conf.creator)
     {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -330,7 +331,7 @@ fn query_actual_state(deps: Deps, env: Env) -> StdResult<State> {
         return Ok(state);
     }
 
-    //read params
+    // read params
     let params = PARAMETERS.load(deps.storage)?;
     let coin_denom = params.underlying_coin_denom;
 
@@ -376,7 +377,7 @@ pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 
-    // call slashing and
+    // call slashing and return new exchange rate
     let state = slashing(&mut deps, env)?;
     Ok(Response::new().add_attributes(vec![
         attr("action", "check_slashing"),
@@ -414,18 +415,10 @@ fn query_guardians(deps: Deps) -> StdResult<Vec<String>> {
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
-    let mut reward_dispatcher: Option<String> = None;
-    let mut validators_contract: Option<String> = None;
-    let mut statom_token: Option<String> = None;
-    if config.reward_dispatcher_contract.is_some() {
-        reward_dispatcher = Some(config.reward_dispatcher_contract.unwrap().to_string());
-    }
-    if config.statom_token_contract.is_some() {
-        statom_token = Some(config.statom_token_contract.unwrap().to_string());
-    }
-    if config.validators_registry_contract.is_some() {
-        validators_contract = Some(config.validators_registry_contract.unwrap().to_string());
-    }
+
+    let reward_dispatcher: Option<String> = config.reward_dispatcher_contract.map(|s| s.into());
+    let statom_token: Option<String> = config.statom_token_contract.map(|s| s.into());
+    let validators_contract: Option<String> = config.validators_registry_contract.map(|s| s.into());
 
     Ok(ConfigResponse {
         owner: config.creator.to_string(),

@@ -342,7 +342,7 @@ fn proper_bond_for_st_atom() {
         StdError::generic_err("No uatom assets are provided to bond")
     );
 
-    //send other tokens than atom funds
+    // send other tokens than atom funds
     let bob = String::from("bob");
     let failed_bond = ExecuteMsg::BondForStAtom {};
 
@@ -353,7 +353,7 @@ fn proper_bond_for_st_atom() {
         StdError::generic_err("No uatom assets are provided to bond")
     );
 
-    //bond with more than one coin is not possible
+    // bond with more than one coin is not possible
     let info = mock_info(
         &addr1,
         &[
@@ -455,7 +455,7 @@ fn proper_bond_rewards() {
 
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&addr1, &bond_amount)])]);
 
@@ -482,7 +482,7 @@ fn proper_bond_rewards() {
         StdError::generic_err("No uatom assets are provided to bond")
     );
 
-    //send other tokens than atom funds
+    // send other tokens than atom funds
     let failed_bond = ExecuteMsg::BondRewards {};
 
     let info = mock_info(&reward_dispatcher_contract, &[coin(10, "ukrt")]);
@@ -492,7 +492,7 @@ fn proper_bond_rewards() {
         StdError::generic_err("No uatom assets are provided to bond")
     );
 
-    //bond with more than one coin is not possible
+    // bond with more than one coin is not possible
     let info = mock_info(
         &reward_dispatcher_contract,
         &[
@@ -507,7 +507,7 @@ fn proper_bond_rewards() {
         StdError::generic_err("More than one coin is sent; only one asset is supported")
     );
 
-    //bond from non-dispatcher address
+    // bond from non-dispatcher address
     let info = mock_info(
         &String::from("random_address"),
         &[coin(bond_amount.u128(), "uatom")],
@@ -555,11 +555,11 @@ pub fn proper_update_global_index() {
     // bond
     do_bond_statom(&mut deps, addr1.clone(), bond_amount);
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&addr1, &bond_amount)])]);
 
-    //set delegation for query-all-delegation
+    // set delegation for query-all-delegation
     let delegations: [FullDelegation; 1] = [(sample_delegation(
         validator.address.clone(),
         coin(bond_amount.u128() * 2, "uatom"),
@@ -569,7 +569,7 @@ pub fn proper_update_global_index() {
 
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&addr1, &bond_amount)])]);
 
@@ -629,7 +629,7 @@ pub fn proper_update_global_index_two_validators() {
     // bond
     do_bond_statom(&mut deps, addr1.clone(), Uint128::from(10u64));
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
         (&String::from("token"), &[(&addr1, &Uint128::from(10u128))]),
         (&statom_token_contract, &[(&addr1, &Uint128::from(10u64))]),
@@ -641,7 +641,7 @@ pub fn proper_update_global_index_two_validators() {
     // bond to the second validator
     do_bond_statom(&mut deps, addr1.clone(), Uint128::from(10u64));
 
-    //set delegation for query-all-delegation
+    // set delegation for query-all-delegation
     let delegations: [FullDelegation; 2] = [
         (sample_delegation(validator.address.clone(), coin(10, "uatom"))),
         (sample_delegation(validator2.address.clone(), coin(10, "uatom"))),
@@ -650,7 +650,7 @@ pub fn proper_update_global_index_two_validators() {
     let validators: [Validator; 2] = [(validator.clone()), (validator2.clone())];
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&addr1, &Uint128::from(10u64))])]);
 
@@ -706,21 +706,21 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
     // bond
     do_bond_statom(&mut deps, addr1.clone(), Uint128::from(10u64));
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&addr1, &Uint128::from(10u64))])]);
 
     // register_validator 2 but will not bond anything to it
     do_register_validator(&mut deps, validator2);
 
-    //set delegation for query-all-delegation
+    // set delegation for query-all-delegation
     let delegations: [FullDelegation; 1] =
         [(sample_delegation(validator.address.clone(), coin(10, "uatom")))];
 
     let validators: [Validator; 1] = [(validator.clone())];
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&addr1, &Uint128::from(10u64))])]);
 
@@ -771,7 +771,7 @@ pub fn proper_receive_statom() {
     do_bond_statom(&mut deps, addr1.clone(), Uint128::from(10u64));
     set_delegation(&mut deps.querier, validator, 10, "uatom");
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
         (&statom_token_contract, &[(&addr1, &Uint128::from(10u128))]),
         (&String::from("token"), &[]),
@@ -873,13 +873,13 @@ pub fn proper_unbond_statom() {
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&bob, &Uint128::from(10u128))])]);
 
     set_delegation(&mut deps.querier, validator.clone(), 10, "uatom");
 
-    //check the current batch before unbond
+    // check the current batch before unbond
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
         from_binary(&query(deps.as_ref(), mock_env(), current_batch).unwrap()).unwrap();
@@ -910,11 +910,11 @@ pub fn proper_unbond_statom() {
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&bob, &Uint128::from(9u128))])]);
 
-    //read the undelegated waitlist of the current epoch for the user bob
+    // read the undelegated waitlist of the current epoch for the user bob
     let wait_list = read_unbond_wait_list(&deps.storage, 1, bob.clone()).unwrap();
     assert_eq!(Uint128::from(1u64), wait_list.statom_amount);
 
-    //successful call
+    // successful call
     let successful_bond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: bob.clone(),
@@ -956,7 +956,7 @@ pub fn proper_unbond_statom() {
     assert_eq!(query_batch.requested_statom, Uint128::from(6u64));
 
     let mut env = mock_env();
-    //pushing time forward to check the unbond message
+    // pushing time forward to check the unbond message
     env.block.time = env.block.time.plus_seconds(31);
 
     let successful_bond = Unbond {};
@@ -987,7 +987,7 @@ pub fn proper_unbond_statom() {
         _ => panic!("Unexpected message: {:?}", msg),
     }
 
-    //making sure the sent message (2nd) is undelegate
+    // making sure the sent message (2nd) is undelegate
     let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
         validator: validator.address,
         amount: coin(8, "uatom"),
@@ -1030,10 +1030,10 @@ pub fn proper_unbond_statom() {
     assert_eq!(res.history[0].batch_id, 1);
 }
 
-/// Covers if the pick_validator function sends different Undelegate messages
+/// Covers if the undelegate function sends different Undelegate messages
 /// to different validators, when a validator does not have enough delegation.
 #[test]
-pub fn proper_pick_validator() {
+pub fn proper_undelegate() {
     let mut deps = dependencies(&[]);
 
     let addr1 = String::from("addr1000");
@@ -1128,7 +1128,7 @@ pub fn proper_pick_validator() {
         ],
     )]);
 
-    //check if the undelegate message is send two more than one validator.
+    // check if the undelegate message is send two more than one validator.
     match &res.messages[0].msg.clone() {
         CosmosMsg::Staking(StakingMsg::Undelegate {
             validator: val,
@@ -1151,11 +1151,11 @@ pub fn proper_pick_validator() {
     }
 }
 
-/// Covers if the pick_validator function sends different Undelegate messages
+/// Covers if the undelegate function sends different Undelegate messages
 /// if the delegations of the user are distributed to several validators
 /// and if the user wants to unbond amount that none of validators has.
 #[test]
-pub fn proper_pick_validator_respect_distributed_delegation() {
+pub fn proper_undelegate_respect_distributed_delegation() {
     let mut deps = dependencies(&[]);
 
     let addr1 = String::from("addr1000");
@@ -1248,10 +1248,10 @@ pub fn proper_slashing_statom() {
     // register_validator
     do_register_validator(&mut deps, validator.clone());
 
-    //bond
+    // bond
     do_bond_statom(&mut deps, addr1.clone(), Uint128::from(1000u64));
 
-    //this will set the balance of the user in token contract
+    // this will set the balance of the user in token contract
     deps.querier.with_token_balances(&[
         (
             &statom_token_contract,
@@ -1273,7 +1273,7 @@ pub fn proper_slashing_statom() {
         from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.statom_exchange_rate.to_string(), "0.9");
 
-    //bond again to see the update exchange rate
+    // bond again to see the update exchange rate
     let second_bond = ExecuteMsg::BondForStAtom {};
 
     let info = mock_info(&addr1, &[coin(900, "uatom")]);
@@ -1321,7 +1321,7 @@ pub fn proper_slashing_statom() {
 
     set_delegation(&mut deps.querier, validator.clone(), 1800, "uatom");
 
-    //update user balance
+    // update user balance
     deps.querier.with_token_balances(&[
         (
             &statom_token_contract,
@@ -1384,7 +1384,7 @@ pub fn proper_slashing_statom() {
     );
 
     env.block.time = env.block.time.plus_seconds(90);
-    //check withdrawUnbonded message
+    // check withdrawUnbonded message
     let withdraw_unbond_msg = ExecuteMsg::WithdrawUnbonded {};
     let wdraw_unbonded_res = execute(deps.as_mut(), env, info, withdraw_unbond_msg).unwrap();
     assert_eq!(wdraw_unbonded_res.messages.len(), 1);
@@ -1440,7 +1440,7 @@ pub fn proper_withdraw_unbonded_statom() {
     let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
         (&statom_token_contract, &[(&bob, &Uint128::from(100u128))]),
         (&String::from("token"), &[]),
@@ -1483,7 +1483,7 @@ pub fn proper_withdraw_unbonded_statom() {
 
     let info = mock_info(&bob, &[]);
     let mut env = mock_env();
-    //set the block time 30 seconds from now.
+    // set the block time 30 seconds from now.
     env.block.time = env.block.time.plus_seconds(31);
 
     let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
@@ -1523,7 +1523,7 @@ pub fn proper_withdraw_unbonded_statom() {
         Decimal::from_ratio(2u128, 1u128)
     );
 
-    //this query should be zero since the undelegated period is not passed
+    // this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
     };
@@ -1541,14 +1541,14 @@ pub fn proper_withdraw_unbonded_statom() {
             amount: Uint128::from(40u64),
         },
     )]);
-    //first query AllUnbondedRequests
+    // first query AllUnbondedRequests
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
     let query_unbonded = query(deps.as_ref(), mock_env(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
-    //the amount should be 10
+    // the amount should be 10
     assert_eq!(&res.address, &bob);
     assert_eq!(res.requests[0].1, Uint128::from(20u64));
     assert_eq!(res.requests[0].0, 1);
@@ -1562,7 +1562,7 @@ pub fn proper_withdraw_unbonded_statom() {
     assert_eq!(res.history[0].statom_amount, Uint128::from(20u64));
     assert_eq!(res.history[0].batch_id, 1);
 
-    //check with query
+    // check with query
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
     };
@@ -1584,7 +1584,7 @@ pub fn proper_withdraw_unbonded_statom() {
         _ => panic!("Unexpected message: {:?}", sent_message),
     }
 
-    //it should be removed
+    // it should be removed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
     };
@@ -1645,7 +1645,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_statom() {
     let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
         (&statom_token_contract, &[(&bob, &bond_amount)]),
         (&String::from("token"), &[]),
@@ -1680,7 +1680,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_statom() {
     let info = mock_info(&bob, &[]);
     let mut env = mock_env();
 
-    //set the block time 30 seconds from now.
+    // set the block time 30 seconds from now.
     env.block.time = env.block.time.plus_seconds(31);
     let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
     let wdraw_unbonded_res = execute(
@@ -1702,7 +1702,7 @@ pub fn proper_withdraw_unbonded_respect_slashing_statom() {
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&bob, &Uint128::from(9000u64))])]);
 
-    //this query should be zero since the undelegated period is not passed
+    // this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
     };
@@ -1721,20 +1721,20 @@ pub fn proper_withdraw_unbonded_respect_slashing_statom() {
         },
     )]);
 
-    //first query AllUnbondedRequests
+    // first query AllUnbondedRequests
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
     let query_unbonded = query(deps.as_ref(), mock_env(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
-    //the amount should be 10
+    // the amount should be 10
     assert_eq!(&res.address, &bob);
     assert_eq!(res.requests[0].1, Uint128::from(1000u64));
     assert_eq!(res.requests[0].0, 1);
 
-    //check with query
-    //this query does not reflect the actual withdrawable
+    // check with query
+    // this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
     };
@@ -1796,7 +1796,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_statom() {
     let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
         (&statom_token_contract, &[(&bob, &bond_amount)]),
         (&String::from("token"), &[]),
@@ -1831,7 +1831,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_statom() {
 
     let info = mock_info(&bob, &[]);
     let mut env = mock_env();
-    //set the block time 30 seconds from now.
+    // set the block time 30 seconds from now.
 
     let current_batch = CurrentBatch {};
     let query_batch: CurrentBatchResponse =
@@ -1880,7 +1880,7 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_statom() {
     );
     assert_eq!(res.history[0].batch_id, 1);
 
-    //this query should be zero since the undelegated period is not passed
+    // this query should be zero since the undelegated period is not passed
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
     };
@@ -1898,20 +1898,20 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_statom() {
             amount: Uint128::from(900u64),
         },
     )]);
-    //first query AllUnbondedRequests
+    // first query AllUnbondedRequests
     let all_unbonded = UnbondRequests {
         address: bob.clone(),
     };
     let query_unbonded = query(deps.as_ref(), mock_env(), all_unbonded).unwrap();
     let res: UnbondRequestsResponse = from_binary(&query_unbonded).unwrap();
     assert_eq!(res.requests.len(), 1);
-    //the amount should be 10
+    // the amount should be 10
     assert_eq!(&res.address, &bob);
     assert_eq!(res.requests[0].1, Uint128::from(1000u64));
     assert_eq!(res.requests[0].0, 1);
 
-    //check with query
-    //this query does not reflect the actual withdrawable
+    // check with query
+    // this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
     };
@@ -1989,7 +1989,7 @@ pub fn proper_withdraw_unbond_with_dummies_statom() {
     let res = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
     assert_eq!(2, res.messages.len());
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
         (&statom_token_contract, &[(&bob, &bond_amount)]),
         (&String::from("token"), &[]),
@@ -2021,7 +2021,7 @@ pub fn proper_withdraw_unbond_with_dummies_statom() {
     let info = mock_info(&bob, &[]);
     let mut env = mock_env();
 
-    //set the block time 30 seconds from now.
+    // set the block time 30 seconds from now.
     env.block.time = env.block.time.plus_seconds(31);
     // trigger undelegation message
     let res =
@@ -2122,7 +2122,7 @@ pub fn test_update_params() {
     let _validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
-    //test with no swap denom.
+    // test with no swap denom.
     let update_prams = UpdateParams {
         epoch_period: Some(20),
         unbonding_period: None,
@@ -2156,13 +2156,13 @@ pub fn test_update_params() {
     assert_eq!(params.underlying_coin_denom, "uatom");
     assert_eq!(params.unbonding_period, 2);
 
-    //test with some swap_denom.
+    // test with some swap_denom.
     let update_prams = UpdateParams {
         epoch_period: None,
         unbonding_period: Some(3),
     };
 
-    //the result must be 1
+    // the result must be 1
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
     let res = execute(deps.as_mut(), mock_env(), creator_info, update_prams).unwrap();
     assert_eq!(res.messages.len(), 0);
@@ -2199,7 +2199,7 @@ pub fn proper_update_config() {
     let config_query: ConfigResponse =
         from_binary(&query(deps.as_ref(), mock_env(), config).unwrap()).unwrap();
 
-    //make sure the other configs are still the same.
+    // make sure the other configs are still the same.
     assert_eq!(
         &config_query.reward_dispatcher_contract.unwrap(),
         &reward_contract
@@ -2242,7 +2242,7 @@ pub fn proper_update_config() {
     let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_prams).unwrap();
     assert_eq!(res.messages.len(), 0);
 
-    //previous owner cannot send this message
+    // previous owner cannot send this message
     let update_prams = UpdateParams {
         epoch_period: None,
         unbonding_period: None,
@@ -2279,7 +2279,7 @@ pub fn proper_update_config() {
     let config_query: ConfigResponse =
         from_binary(&query(deps.as_ref(), mock_env(), config).unwrap()).unwrap();
 
-    //make sure the other configs are still the same.
+    // make sure the other configs are still the same.
     assert_eq!(
         config_query.reward_dispatcher_contract.unwrap(),
         String::from("new reward")
@@ -2397,7 +2397,7 @@ fn proper_redelegate_proxy() {
         redelegations: vec![(String::from("dst_validator"), Coin::new(100, "uatom"))],
     };
 
-    //invalid sender
+    // invalid sender
     let info = mock_info(&addr1, &[]);
     let res = execute(
         deps.as_mut(),

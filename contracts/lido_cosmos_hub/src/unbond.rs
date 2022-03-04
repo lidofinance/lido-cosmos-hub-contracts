@@ -240,8 +240,8 @@ fn process_withdraw_rate(
     Ok(())
 }
 
-fn pick_validator(deps: &DepsMut, claim: Uint128, delegator: String) -> StdResult<Vec<CosmosMsg>> {
-    //read params
+fn undelegate(deps: &DepsMut, claim: Uint128, delegator: String) -> StdResult<Vec<CosmosMsg>> {
+    // read params
     let params = PARAMETERS.load(deps.storage)?;
     let coin_denom = params.underlying_coin_denom;
 
@@ -347,7 +347,7 @@ fn process_undelegations(
     let delegator = env.contract.address;
 
     // Send undelegated requests to possibly more than one validators
-    let undelegated_msgs = pick_validator(deps, statom_undelegation_amount, delegator.to_string())?;
+    let undelegated_msgs = undelegate(deps, statom_undelegation_amount, delegator.to_string())?;
 
     state.total_bond_statom_amount = state
         .total_bond_statom_amount

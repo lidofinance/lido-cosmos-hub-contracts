@@ -24,9 +24,9 @@ so others know the rules for using this crate. You can use any license you wish,
 even a commercial license, but we recommend choosing one of the following, unless you have
 specific requirements.
 
-* Permissive: [`Apache-2.0`](https://spdx.org/licenses/Apache-2.0.html#licenseText) or [`MIT`](https://spdx.org/licenses/MIT.html#licenseText)
-* Copyleft: [`GPL-3.0-or-later`](https://spdx.org/licenses/GPL-3.0-or-later.html#licenseText) or [`AGPL-3.0-or-later`](https://spdx.org/licenses/AGPL-3.0-or-later.html#licenseText)
-* Commercial license: `Commercial` (not sure if this works, I cannot find examples)
+- Permissive: [`Apache-2.0`](https://spdx.org/licenses/Apache-2.0.html#licenseText) or [`MIT`](https://spdx.org/licenses/MIT.html#licenseText)
+- Copyleft: [`GPL-3.0-or-later`](https://spdx.org/licenses/GPL-3.0-or-later.html#licenseText) or [`AGPL-3.0-or-later`](https://spdx.org/licenses/AGPL-3.0-or-later.html#licenseText)
+- Commercial license: `Commercial` (not sure if this works, I cannot find examples)
 
 It is also helpful to download the LICENSE text (linked to above) and store this
 in a LICENSE file in your repo. Now, you have properly configured your crate for use
@@ -99,7 +99,7 @@ to the [`cawesome-wasm`](https://github.com/cosmwasm/cawesome-wasm) list.
 Many times you are writing a contract not as a solo developer, but rather as
 part of an organization. You will want to allow colleagues to upload new
 versions of the contract to crates.io when you are on holiday.
-[These instructions show how]() you can set up your crate to allow multiple maintainers.
+[These instructions show how](https://github.com/scrtlabs/secret-vault/blob/master/README.md) you can set up your crate to allow multiple maintainers.
 
 You can add another owner to the crate by specifying their github user. Note, you will
 now both have complete control of the crate, and they can remove you:
