@@ -1,6 +1,6 @@
 // Copyright 2021 Lido
 //
-// Licensedicensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
@@ -19,7 +19,7 @@ use std::ops::Sub;
 pub fn calculate_delegations(
     mut amount_to_delegate: Uint128,
     validators: &[ValidatorResponse],
-) -> StdResult<(Uint128, Vec<Uint128>)> {
+) -> StdResult<Vec<Uint128>> {
     if validators.is_empty() {
         return Err(StdError::generic_err("Empty validators set"));
     }
@@ -49,7 +49,14 @@ pub fn calculate_delegations(
             break;
         }
     }
-    Ok((amount_to_delegate, delegations))
+    // This is impossible but we have this check to prevent issues in case we do some changes in the distribution algorithm
+    if amount_to_delegate.is_zero() {
+        Ok(delegations)
+    } else {
+        Err(StdError::generic_err(
+            "Failed to distribute delegated amount completely",
+        ))
+    }
 }
 
 pub fn calculate_undelegations(

@@ -601,18 +601,12 @@ fn test_calculate_delegations() {
     validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
 
     let buffered_balance = Uint128::from(10u128);
-    let (remained_balance, delegations) =
-        calculate_delegations(buffered_balance, validators.as_slice()).unwrap();
+    let delegations = calculate_delegations(buffered_balance, validators.as_slice()).unwrap();
 
     assert_eq!(
         validators.len(),
         delegations.len(),
         "Delegations are not correct"
-    );
-    assert_eq!(
-        remained_balance,
-        Uint128::zero(),
-        "Not all tokens were delegated"
     );
     for i in 0..expected_delegations.len() {
         assert_eq!(

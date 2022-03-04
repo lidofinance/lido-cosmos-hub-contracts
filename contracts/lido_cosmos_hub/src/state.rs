@@ -161,8 +161,8 @@ pub fn store_unbond_history(
 }
 
 #[allow(clippy::needless_lifetimes)]
-pub fn read_unbond_history(storage: &dyn Storage, epoc_id: u64) -> StdResult<UnbondHistory> {
-    let vec = epoc_id.to_be_bytes().to_vec();
+pub fn read_unbond_history(storage: &dyn Storage, epoch_id: u64) -> StdResult<UnbondHistory> {
+    let vec = epoch_id.to_be_bytes().to_vec();
     let res = ReadonlyPrefixedStorage::new(storage, UNBOND_HISTORY_MAP).get(&vec);
     match res {
         Some(data) => from_slice(&data),
