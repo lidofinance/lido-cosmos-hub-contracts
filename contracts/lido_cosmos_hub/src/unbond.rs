@@ -11,17 +11,17 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 use crate::contract::slashing;
 use crate::state::{
     get_finished_amount, read_unbond_history, remove_unbond_wait_list, store_unbond_history,
     store_unbond_wait_list, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
 };
 use basset::hub::{CurrentBatch, State, UnbondHistory};
-use cosmwasm_bignumber::{Decimal256, Uint256};
+use std::str::FromStr;
+// use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
-    attr, coin, coins, to_binary, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response,
-    StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
+    attr, coin, coins, to_binary, BankMsg, CosmosMsg, Decimal, Decimal256, DepsMut, Env,
+    MessageInfo, Response, StakingMsg, StdError, StdResult, Storage, Uint128, Uint256, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 use lido_cosmos_validators_registry::common::calculate_undelegations;
@@ -115,7 +115,13 @@ fn calculate_newly_added_unbonded_amount(
             Err(_) => break,
         }
         let statom_burnt_amount = Uint256::from(history.statom_amount);
-        let statom_historical_rate = Decimal256::from(history.statom_withdraw_rate);
+
+        // FIX: check the error
+        let statom_historical_rate = Decimal256::from_atomics(
+            history.statom_withdraw_rate.atomics(),
+            history.statom_withdraw_rate.decimal_places(),
+        )
+        .unwrap();
         let statom_unbonded_amount = statom_burnt_amount * statom_historical_rate;
 
         statom_total_unbonded_amount += statom_unbonded_amount;
@@ -126,6 +132,11 @@ fn calculate_newly_added_unbonded_amount(
     (statom_total_unbonded_amount, batch_count)
 }
 
+fn u256_to_u128(f: Uint256) -> Uint128 {
+    // FIX: quick dirty hack
+    Uint128::from_str(f.to_string().as_str()).unwrap()
+}
+
 fn calculate_new_withdraw_rate(
     amount: Uint128,
     withdraw_rate: Decimal,
@@ -133,12 +144,13 @@ fn calculate_new_withdraw_rate(
     slashed_amount: SignedInt,
 ) -> Decimal {
     let burnt_amount_of_batch = Uint256::from(amount);
-    let historical_rate_of_batch = Decimal256::from(withdraw_rate);
+    let historical_rate_of_batch =
+        Decimal256::from_atomics(withdraw_rate.atomics(), withdraw_rate.decimal_places()).unwrap();
     let unbonded_amount_of_batch = burnt_amount_of_batch * historical_rate_of_batch;
 
     // the slashed amount for each batch must be proportional to the unbonded amount of batch
     let batch_slashing_weight = if total_unbonded_amount != Uint256::zero() {
-        Decimal256::from_ratio(unbonded_amount_of_batch.0, total_unbonded_amount.0)
+        Decimal256::from_ratio(unbonded_amount_of_batch, total_unbonded_amount)
     } else {
         Decimal256::zero()
     };
@@ -149,15 +161,15 @@ fn calculate_new_withdraw_rate(
 
     // If slashed amount is negative, there should be summation instead of subtraction.
     if slashed_amount.1 {
-        slashed_amount_of_batch = if slashed_amount_of_batch > Uint256::one() {
-            slashed_amount_of_batch - Uint256::one()
+        slashed_amount_of_batch = if slashed_amount_of_batch > Uint256::from(1u32) {
+            slashed_amount_of_batch - Uint256::from(1u32)
         } else {
             Uint256::zero()
         };
         actual_unbonded_amount_of_batch = unbonded_amount_of_batch + slashed_amount_of_batch;
     } else {
-        if slashed_amount.0.u128() != 0u128 {
-            slashed_amount_of_batch += Uint256::one();
+        if !slashed_amount.0.is_zero() {
+            slashed_amount_of_batch += Uint256::from(1u32);
         }
         actual_unbonded_amount_of_batch = Uint256::from(
             SignedInt::from_subtraction(unbonded_amount_of_batch, slashed_amount_of_batch).0,
@@ -166,7 +178,7 @@ fn calculate_new_withdraw_rate(
 
     // Calculate the new withdraw rate
     if burnt_amount_of_batch != Uint256::zero() {
-        Decimal::from_ratio(actual_unbonded_amount_of_batch, burnt_amount_of_batch)
+        Decimal::from_ratio(u256_to_u128(actual_unbonded_amount_of_batch), u256_to_u128(burnt_amount_of_batch))
     } else {
         withdraw_rate
     }

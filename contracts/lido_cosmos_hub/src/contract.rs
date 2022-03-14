@@ -407,8 +407,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 fn query_guardians(deps: Deps) -> StdResult<Vec<String>> {
     let guardians = GUARDIANS.keys(deps.storage, None, None, Order::Ascending);
-    let guardians_decoded: Result<Vec<String>, FromUtf8Error> =
-        guardians.map(String::from_utf8).collect();
+    let guardians_decoded: Result<Vec<String>, StdError> =
+        guardians.collect();
     Ok(guardians_decoded?)
 }
 
