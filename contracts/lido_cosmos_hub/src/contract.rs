@@ -17,9 +17,9 @@ use cosmwasm_std::entry_point;
 use std::string::FromUtf8Error;
 
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, Coin, CosmosMsg, Decimal, DelegationResponse, Deps,
-    DepsMut, DistributionMsg, Env, MessageInfo, Order, QueryRequest, Response, StakingMsg,
-    StdError, StdResult, Uint128, WasmMsg, WasmQuery,
+    attr, from_binary, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, DistributionMsg,
+    Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128,
+    WasmMsg, WasmQuery,
 };
 
 use crate::config::{execute_update_config, execute_update_params};
@@ -125,9 +125,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::RemoveGuardians { addresses } => {
             execute_remove_guardians(deps, env, info, addresses)
         }
-        ExecuteMsg::ReceiveTokenizedShare { validator } => {
-            receive_tokenized_share(deps, env, info, validator)
-        }
+        ExecuteMsg::ReceiveTokenizedShare {} => receive_tokenized_share(deps, env, info),
     }
 }
 

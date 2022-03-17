@@ -35,7 +35,7 @@ library = []
 [dependencies]
 cw20 = "0.8.0"
 cw20-base = { version = "0.8.0", features = ["library"] }
-cosmwasm-std = { version = "0.16.0", features = ["staking"] }
+cosmwasm-std = { version = "0.16.0", features = ["staking", "stargate"] }
 cosmwasm-storage = { version = "0.16.0", features = ["iterator"] }
 cw-storage-plus = { version = "0.8.0", features = ["iterator"]}
 terra-cosmwasm = { version = "2.2.0" }
@@ -48,6 +48,7 @@ basset = { path = "../../packages/basset", default-features = false, version = "
 signed_integer = { path = "../../packages/signed_integers", default-features = false, version = "0.1.0"}
 lido_cosmos_validators_registry = {path = "../lido_cosmos_validators_registry", features = ["library"]}
 cosmwasm-bignumber = "2.2.0"
+protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
 cosmwasm-vm = { version = "0.16.0", default-features = false, features = ["iterator"] }

@@ -23,3 +23,4 @@ mod unbond;
 
 #[cfg(test)]
 mod testing;
+mod tokenize_share_record;

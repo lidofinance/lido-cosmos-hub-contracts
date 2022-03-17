@@ -127,9 +127,7 @@ pub enum ExecuteMsg {
         addresses: Vec<String>,
     },
 
-    ReceiveTokenizedShare {
-        validator: String,
-    },
+    ReceiveTokenizedShare {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
