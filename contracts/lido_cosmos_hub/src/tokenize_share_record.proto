@@ -14,3 +14,15 @@ message QueryTokenizeShareRecordByDenomRequest {
 message QueryTokenizeShareRecordByDenomResponse {
   TokenizeShareRecord record = 1;
 }
+
+message Coin {
+  string denom  = 1;
+  string amount = 2;
+}
+
+message MsgRedeemTokensforShares {
+  string delegator_address = 1;
+  Coin amount = 2;
+}
+
+message MsgRedeemTokensforSharesResponse {}

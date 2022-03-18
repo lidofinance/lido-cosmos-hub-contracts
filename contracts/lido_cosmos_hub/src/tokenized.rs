@@ -13,9 +13,9 @@
 // limitations under the License.
 
 use cosmwasm_std::{
-    attr, to_binary, BalanceResponse, BankQuery, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, FullDelegation, MessageInfo, QueryRequest, Response, StakingMsg, StakingQuery, StdError,
-    StdResult, WasmMsg, WasmQuery,
+    attr, to_binary, Addr, Attribute, BalanceResponse, BankQuery, Binary, Coin, CosmosMsg, Decimal,
+    Deps, DepsMut, Env, FullDelegation, MessageInfo, QueryRequest, Response, StakingQuery,
+    StdError, StdResult, WasmMsg, WasmQuery,
 };
 
 use crate::state::{CONFIG, STATE};
@@ -24,11 +24,10 @@ use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
 use crate::contract::slashing;
 use crate::math::decimal_division;
 use crate::tokenize_share_record::{
-    QueryTokenizeShareRecordByDenomRequest, QueryTokenizeShareRecordByDenomResponse,
-    TokenizeShareRecord,
+    Coin as ProtoCoin, MsgRedeemTokensforShares, QueryTokenizeShareRecordByDenomRequest,
+    QueryTokenizeShareRecordByDenomResponse, TokenizeShareRecord,
 };
 use cw20::Cw20ExecuteMsg;
-use lido_cosmos_validators_registry::registry::ValidatorResponse;
 use protobuf::Message;
 use std::ops::Mul;
 use std::string::String;
@@ -53,11 +52,39 @@ fn get_tokenize_share_record_by_denom(
     Ok(decoded_response.record.into_option())
 }
 
-struct Voucher {
-    amount: Coin,
-    tokenize_share_record: TokenizeShareRecord,
+// TODO: remove unwraps
+fn build_redeem_tokenize_share_msg(delegator: String, coin: Coin) -> CosmosMsg {
+    let mut proto_coin = ProtoCoin::new();
+    proto_coin.set_amount(coin.amount.to_string());
+    proto_coin.set_denom(coin.denom);
+
+    let mut redeem_msg = MsgRedeemTokensforShares::new();
+    redeem_msg.set_amount(proto_coin);
+    redeem_msg.set_delegator_address(delegator);
+
+    let encoded_redeem_msg = Binary::from(redeem_msg.write_to_bytes().unwrap());
+
+    cosmwasm_std::CosmosMsg::Stargate {
+        type_url: "/liquidstaking.staking.v1beta1.Msg/RedeemTokens".to_string(),
+        value: encoded_redeem_msg,
+    }
 }
 
+// TODO: query a validators list once and call .has() method
+fn is_known_validator(
+    deps: Deps,
+    validators_registry_contract: Addr,
+    validator: String,
+) -> StdResult<bool> {
+    let is_known_validator: bool = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: validators_registry_contract.to_string(),
+        msg: to_binary(&QueryValidators::HasValidator { address: validator })?,
+    }))?;
+
+    Ok(is_known_validator)
+}
+
+// TODO: remove unwraps
 pub fn receive_tokenized_share(
     mut deps: DepsMut,
     env: Env,
@@ -73,13 +100,12 @@ pub fn receive_tokenized_share(
         ));
     };
 
-    let validators_response: Vec<ValidatorResponse> =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: validators_registry_contract.to_string(),
-            msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
-        }))?;
+    let token_address = config
+        .statom_token_contract
+        .ok_or_else(|| StdError::generic_err("the token contract must have been registered"))?;
 
-    let validators: Vec<String> = validators_response.iter().map(|vr| vr.address).collect();
+    let mut messages: Vec<CosmosMsg> = vec![];
+    let mut attrs: Vec<Attribute> = vec![];
 
     // Trying to get TokenizeShareRecord for every voucher we've got by denom.
     // If we can't find a record or we get an error, tx reverted
@@ -87,57 +113,30 @@ pub fn receive_tokenized_share(
     // Note: tokenized share denom looks like this:
     // cosmosvaloper1qp49fdjtlsrv6jkx3gc8urp2ncg88s6mcversm12345, where 12345 is the recordId
     // (see https://github.com/iqlusioninc/liquidity-staking-module/blob/master/x/staking/keeper/msg_server.go#L436)
-    let vouchers: StdResult<Vec<Voucher>> = info
-        .funds
-        .into_iter()
-        .map(|v| {
-            let tokenize_share_response =
-                get_tokenize_share_record_by_denom(deps.as_ref(), v.denom.clone());
+    for fund in info.funds.into_iter() {
+        let tokenize_share = if let Some(t) =
+            get_tokenize_share_record_by_denom(deps.as_ref(), fund.denom.clone())?
+        {
+            t
+        } else {
+            return Err(StdError::generic_err(format!(
+                "cannot find tokenize share record with denom {}",
+                fund.denom
+            )));
+        };
 
-            // if query fails - return an error
-            if tokenize_share_response.is_err() {
-                return Err(tokenize_share_response.err().unwrap());
-            }
+        if !is_known_validator(
+            deps.as_ref(),
+            validators_registry_contract.clone(),
+            tokenize_share.validator.clone(),
+        )? {
+            return Err(StdError::generic_err("Validator is not whitelisted"));
+        }
 
-            // if we can't find a record for denom - return an error
-            if tokenize_share_response.unwrap().is_none() {
-                return Err(StdError::generic_err(format!(
-                    "cannot find tokenize share record with denom {}",
-                    v.denom.clone()
-                )));
-            }
-            let tokenize_share = tokenize_share_response.unwrap().unwrap();
-
-            // if validator if a record is not in our whitelisted set - return an error
-            if !validators.contains(&tokenize_share.validator) {
-                return Err(StdError::generic_err(format!(
-                    "validator of tokenize share {} is not in our whitelisted set",
-                    tokenize_share.share_token_denom
-                )));
-            }
-
-            // everything is ok - return a record
-            Ok(Voucher {
-                amount: v,
-                tokenize_share_record: tokenize_share,
-            })
-        })
-        .collect();
-
-    let res = Response::new().add_attributes(vec![
-        attr("action", "bond_rewards"),
-        attr("from", info.sender.clone()),
-    ]);
-
-    for voucher in vouchers? {
-        let mut messages: Vec<CosmosMsg> = vec![];
-        // Note: the RedeemTokensForShares message is not implemented yet.
-        // TODO: Stargate msg
-        messages.push(cosmwasm_std::CosmosMsg::Staking(
-            StakingMsg::RedeemTokensForShares {
-                delegator_address: env.contract.address.clone(),
-                amount: voucher.amount,
-            },
+        // Note: the RedeemTokensForShares message is not implemented yet, so we use Stargate feature
+        messages.push(build_redeem_tokenize_share_msg(
+            env.contract.address.to_string(),
+            fund.clone(),
         ));
 
         // Unfortunately, the response for RedeemTokensForShares does not contain any
@@ -149,8 +148,8 @@ pub fn receive_tokenized_share(
         let delegation_response: Option<FullDelegation> =
             deps.querier
                 .query(&QueryRequest::Staking(StakingQuery::Delegation {
-                    delegator: voucher.tokenize_share_record.module_account,
-                    validator: voucher.tokenize_share_record.validator,
+                    delegator: tokenize_share.module_account,
+                    validator: tokenize_share.validator,
                 }))?;
 
         let delegation: FullDelegation = if let Some(d) = delegation_response {
@@ -158,7 +157,7 @@ pub fn receive_tokenized_share(
         } else {
             return Err(StdError::generic_err(format!(
                 "Failed to find delegation for {}",
-                voucher.tokenize_share_record.share_token_denom
+                tokenize_share.share_token_denom
             )));
         };
 
@@ -171,7 +170,7 @@ pub fn receive_tokenized_share(
         let user_tokenized_shares_balance: BalanceResponse =
             deps.querier.query(&QueryRequest::Bank(BankQuery::Balance {
                 address: info.sender.to_string(),
-                denom: voucher.tokenize_share_record.share_token_denom,
+                denom: tokenize_share.share_token_denom,
             }))?;
 
         // Check slashing & get the current exchange rate.
@@ -181,17 +180,14 @@ pub fn receive_tokenized_share(
         // (send tokenized coins / total user amount) * atom value of the
         // full delegation.
         let redeemed_tokens = Decimal::from_ratio(
-            voucher.amount.amount.clone(),
-            user_tokenized_shares_balance.amount.amount + voucher.amount.amount.clone(),
+            fund.amount,
+            user_tokenized_shares_balance.amount.amount + fund.amount,
         )
         .mul(delegation.amount.amount);
 
         // This is the amount of stATOM tokens that should be minted.
         let mint_amount = decimal_division(redeemed_tokens, state.statom_exchange_rate);
 
-        let token_address = config
-            .statom_token_contract
-            .ok_or_else(|| StdError::generic_err("the token contract must have been registered"))?;
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: token_address.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Mint {
@@ -207,14 +203,16 @@ pub fn receive_tokenized_share(
             Ok(prev_state)
         })?;
 
-        res.add_attributes(vec![
-            attr(
-                format!("{}_incoming_amount", voucher.amount.denom),
-                voucher.amount.amount.clone(),
-            ),
+        attrs.extend(vec![
+            attr(format!("{}_incoming_amount", fund.denom), fund.amount),
             attr("mint_amount", mint_amount),
         ]);
     }
 
-    Ok(Response::new())
+    let res = Response::new()
+        .add_attributes(vec![attr("action", "bond"), attr("from", info.sender)])
+        .add_attributes(attrs)
+        .add_messages(messages);
+
+    Ok(res)
 }
