@@ -21,11 +21,17 @@ use cosmwasm_std::{
 };
 use cosmwasm_storage::to_length_prefixed;
 use cw20_base::state::{MinterData, TokenInfo};
-use lido_cosmos_validators_registry::registry::ValidatorResponse as RegistryValidator;
+use lido_cosmos_validators_registry::registry::{
+    ValidatorResponse as RegistryValidator, ValidatorResponse,
+};
 use std::collections::HashMap;
 
 use basset::hub::Config;
 use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg};
+use lido_cosmos_validators_registry::msg::QueryMsg::{
+    Config as ValidatorsRegistryConfig, GetLargestValidator, GetValidatorsForDelegation,
+    HasValidator,
+};
 use serde::de::DeserializeOwned;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
@@ -123,9 +129,26 @@ impl WasmMockQuerier {
             }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if contract_addr == VALIDATORS_REGISTRY {
-                    let mut validators = self.validators.clone();
-                    validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
-                    return SystemResult::Ok(ContractResult::from(to_binary(&validators)));
+                    match from_binary(msg).unwrap() {
+                        GetValidatorsForDelegation {} => {
+                            let mut validators = self.validators.clone();
+                            validators
+                                .sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
+                            return SystemResult::Ok(ContractResult::from(to_binary(&validators)));
+                        }
+                        GetLargestValidator {} => {
+                            return SystemResult::Ok(ContractResult::from(to_binary(
+                                &ValidatorResponse {
+                                    address: "".to_string(),
+                                    total_delegated: Uint128::new(1000),
+                                },
+                            )));
+                        }
+                        HasValidator { address: _ } => panic!("unimplemented HasValidator"),
+                        ValidatorsRegistryConfig {} => {
+                            panic!("unimplemented ValidatorsRegistryConfig")
+                        }
+                    }
                 }
                 match from_binary(msg).unwrap() {
                     Cw20QueryMsg::TokenInfo {} => {

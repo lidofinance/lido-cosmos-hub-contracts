@@ -18,6 +18,7 @@ pub struct InstantiateMsg {
     pub epoch_period: u64,
     pub underlying_coin_denom: String,
     pub unbonding_period: u64,
+    pub max_burn_rate: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
@@ -41,8 +42,8 @@ pub struct Config {
 }
 
 impl State {
-    pub fn update_statom_exchange_rate(&mut self, total_issued: Uint128, requested: Uint128) {
-        let actual_supply = total_issued + requested;
+    pub fn update_statom_exchange_rate(&mut self, total_issued: Uint128) {
+        let actual_supply = total_issued;
         if self.total_bond_statom_amount.is_zero() || actual_supply.is_zero() {
             self.statom_exchange_rate = Decimal::one()
         } else {
@@ -69,8 +70,7 @@ pub enum ExecuteMsg {
 
     /// update the parameters that is needed for the contract
     UpdateParams {
-        epoch_period: Option<u64>,
-        unbonding_period: Option<u64>,
+        max_burn_rate: Decimal,
     },
 
     /// Pauses the contracts. Only the owner or allowed guardians can pause the contracts
@@ -92,9 +92,6 @@ pub enum ExecuteMsg {
 
     /// Dispatch Rewards
     DispatchRewards {},
-
-    /// Send back unbonded coin to the user
-    WithdrawUnbonded {},
 
     /// Check whether the slashing has happened or not
     CheckSlashing {},
@@ -137,10 +134,9 @@ pub enum Cw20HookMsg {
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Parameters {
-    pub epoch_period: u64,
     pub underlying_coin_denom: String,
-    pub unbonding_period: u64,
     pub paused: Option<bool>,
+    pub max_burn_ratio: Option<Decimal>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -224,18 +220,7 @@ pub struct MigrateMsg {}
 pub enum QueryMsg {
     Config {},
     State {},
-    CurrentBatch {},
-    WithdrawableUnbonded {
-        address: String,
-    },
     Parameters {},
-    UnbondRequests {
-        address: String,
-    },
-    AllHistory {
-        start_from: Option<u64>,
-        limit: Option<u32>,
-    },
     Guardians,
 }
 

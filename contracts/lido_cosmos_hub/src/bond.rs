@@ -14,7 +14,7 @@
 
 use crate::contract::slashing;
 use crate::math::decimal_division;
-use crate::state::{CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
+use crate::state::{CONFIG, PARAMETERS, STATE};
 use basset::hub::{BondType, Parameters};
 use cosmwasm_std::{
     attr, to_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response,
@@ -46,12 +46,6 @@ pub fn execute_bond(
     if bond_type == BondType::BondRewards && info.sender != reward_dispatcher_addr {
         return Err(StdError::generic_err("unauthorized"));
     }
-
-    // current batch requested fee is need for accurate exchange rate computation.
-    let current_batch = CURRENT_BATCH.load(deps.storage)?;
-    let requested_with_fee = match bond_type {
-        BondType::StAtom | BondType::BondRewards => current_batch.requested_statom,
-    };
 
     // coin must have be sent along with transaction and it should be in underlying coin denom
     if info.funds.len() > 1usize {
@@ -91,7 +85,7 @@ pub fn execute_bond(
         match bond_type {
             BondType::BondRewards => {
                 prev_state.total_bond_statom_amount += payment.amount;
-                prev_state.update_statom_exchange_rate(total_supply, requested_with_fee);
+                prev_state.update_statom_exchange_rate(total_supply);
                 Ok(prev_state)
             }
             BondType::StAtom => {

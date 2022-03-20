@@ -15,19 +15,22 @@
 use cosmwasm_std::{
     attr, to_binary, Addr, Attribute, BalanceResponse, BankQuery, Binary, Coin, CosmosMsg, Decimal,
     Deps, DepsMut, Env, FullDelegation, MessageInfo, QueryRequest, Response, StakingQuery,
-    StdError, StdResult, WasmMsg, WasmQuery,
+    StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 
-use crate::state::{CONFIG, STATE};
+use crate::state::{CONFIG, PARAMETERS, STATE};
 use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
 
 use crate::contract::slashing;
 use crate::math::decimal_division;
 use crate::tokenize_share_record::{
-    Coin as ProtoCoin, MsgRedeemTokensforShares, QueryTokenizeShareRecordByDenomRequest,
-    QueryTokenizeShareRecordByDenomResponse, TokenizeShareRecord,
+    Coin as ProtoCoin, MsgRedeemTokensforShares, MsgTokenizeShares,
+    QueryTokenizeShareRecordByDenomRequest, QueryTokenizeShareRecordByDenomResponse,
+    TokenizeShareRecord,
 };
+use basset::hub::Parameters;
 use cw20::Cw20ExecuteMsg;
+use lido_cosmos_validators_registry::registry::ValidatorResponse;
 use protobuf::Message;
 use std::ops::Mul;
 use std::string::String;
@@ -70,6 +73,30 @@ fn build_redeem_tokenize_share_msg(delegator: String, coin: Coin) -> CosmosMsg {
     }
 }
 
+fn build_tokenize_share_msg(
+    delegator: String,
+    validator: String,
+    tokenized_share_owner: String,
+    coin: Coin,
+) -> CosmosMsg {
+    let mut proto_coin = ProtoCoin::new();
+    proto_coin.set_amount(coin.amount.to_string());
+    proto_coin.set_denom(coin.denom);
+
+    let mut tokenize_msg = MsgTokenizeShares::new();
+    tokenize_msg.set_amount(proto_coin);
+    tokenize_msg.set_validator_address(validator);
+    tokenize_msg.set_delegator_address(delegator);
+    tokenize_msg.set_tokenized_share_owner(tokenized_share_owner);
+
+    let encoded_tokenize_msg = Binary::from(tokenize_msg.write_to_bytes().unwrap());
+
+    cosmwasm_std::CosmosMsg::Stargate {
+        type_url: "/liquidstaking.staking.v1beta1.Msg/TokenizeShares".to_string(),
+        value: encoded_tokenize_msg,
+    }
+}
+
 // TODO: query a validators list once and call .has() method
 fn is_known_validator(
     deps: Deps,
@@ -82,6 +109,16 @@ fn is_known_validator(
     }))?;
 
     Ok(is_known_validator)
+}
+
+fn get_largest_validator(
+    deps: Deps,
+    validators_registry_contract: Addr,
+) -> StdResult<ValidatorResponse> {
+    return deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: validators_registry_contract.to_string(),
+        msg: to_binary(&QueryValidators::GetLargestValidator {})?,
+    }));
 }
 
 // TODO: remove unwraps
@@ -214,5 +251,82 @@ pub fn receive_tokenized_share(
         .add_attributes(attrs)
         .add_messages(messages);
 
+    Ok(res)
+}
+
+/// This message must be call by receive_cw20
+/// This message will undelegate coin and burn stAtom tokens
+pub(crate) fn execute_unbond_statom(
+    mut deps: DepsMut,
+    env: Env,
+    amount: Uint128,
+    sender: String,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    let params: Parameters = PARAMETERS.load(deps.storage)?;
+
+    // Check slashing, update state, and calculate the new exchange rate.
+    let mut state = slashing(&mut deps, env.clone())?;
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    let undelegation_amount = amount * state.statom_exchange_rate;
+    state.total_bond_statom_amount = state
+        .total_bond_statom_amount
+        .checked_sub(undelegation_amount.clone())?;
+
+    // Pick the largest validator and check that the burn amount is less than 10% of its stake.
+    let validators_registry_contract = if let Some(v) = config.validators_registry_contract {
+        v
+    } else {
+        return Err(StdError::generic_err(
+            "Validators registry contract address is empty",
+        ));
+    };
+
+    let validator = get_largest_validator(deps.as_ref(), validators_registry_contract)?;
+
+    let max_burn_ratio = if let Some(mbr) = params.max_burn_ratio {
+        mbr
+    } else {
+        return Err(StdError::generic_err("Max burn ratio parameter is empty"));
+    };
+
+    if amount > validator.total_delegated.mul(max_burn_ratio) {
+        return Err(StdError::generic_err(format!(
+            "Can not burn more than {} of the top validator's stake",
+            max_burn_ratio
+        )));
+    }
+
+    messages.push(build_tokenize_share_msg(
+        env.contract.address.to_string(),
+        validator.address,
+        sender.clone(),
+        Coin::new(undelegation_amount.u128(), params.underlying_coin_denom),
+    ));
+
+    // Store state's new exchange rate
+    STATE.save(deps.storage, &state)?;
+
+    // Send Burn message to token contract
+    let config = CONFIG.load(deps.storage)?;
+    let token_address = config
+        .statom_token_contract
+        .ok_or_else(|| StdError::generic_err("the token contract must have been registered"))?;
+
+    let burn_msg = Cw20ExecuteMsg::Burn { amount };
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: token_address.to_string(),
+        msg: to_binary(&burn_msg)?,
+        funds: vec![],
+    }));
+
+    let res = Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "burn"),
+        attr("from", sender),
+        attr("burnt_amount", amount),
+        attr("unbonded_amount", amount),
+    ]);
     Ok(res)
 }

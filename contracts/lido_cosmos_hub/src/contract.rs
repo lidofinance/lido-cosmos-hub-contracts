@@ -23,18 +23,13 @@ use cosmwasm_std::{
 };
 
 use crate::config::{execute_update_config, execute_update_params};
-use crate::state::{
-    all_unbond_history, get_unbond_requests, query_get_finished_amount, CONFIG, CURRENT_BATCH,
-    GUARDIANS, PARAMETERS, STATE,
-};
-use crate::unbond::{execute_unbond_statom, execute_withdraw_unbonded};
+use crate::state::{CONFIG, GUARDIANS, PARAMETERS, STATE};
 
 use crate::bond::execute_bond;
-use crate::tokenized::receive_tokenized_share;
+use crate::tokenized::{execute_unbond_statom, receive_tokenized_share};
 use basset::hub::{
-    AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
-    InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondHistoryResponse,
-    UnbondRequestsResponse, WithdrawableUnbondedResponse,
+    BondType, Config, ConfigResponse, InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State,
+    StateResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
@@ -70,19 +65,12 @@ pub fn instantiate(
 
     // instantiate parameters
     let params = Parameters {
-        epoch_period: msg.epoch_period,
         underlying_coin_denom: msg.underlying_coin_denom,
-        unbonding_period: msg.unbonding_period,
         paused: Some(false),
+        max_burn_ratio: Some(msg.max_burn_rate),
     };
 
     PARAMETERS.save(deps.storage, &params)?;
-
-    let batch = CurrentBatch {
-        id: 1,
-        requested_statom: Default::default(),
-    };
-    CURRENT_BATCH.save(deps.storage, &batch)?;
 
     let res = Response::new();
     Ok(res)
@@ -95,12 +83,10 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::BondForStAtom {} => execute_bond(deps, env, info, BondType::StAtom),
         ExecuteMsg::BondRewards {} => execute_bond(deps, env, info, BondType::BondRewards),
         ExecuteMsg::DispatchRewards {} => execute_dispatch_rewards(deps, env, info),
-        ExecuteMsg::WithdrawUnbonded {} => execute_withdraw_unbonded(deps, env, info),
         ExecuteMsg::CheckSlashing {} => execute_slashing(deps, env),
-        ExecuteMsg::UpdateParams {
-            epoch_period,
-            unbonding_period,
-        } => execute_update_params(deps, env, info, epoch_period, unbonding_period),
+        ExecuteMsg::UpdateParams { max_burn_rate } => {
+            execute_update_params(deps, env, info, max_burn_rate)
+        }
         ExecuteMsg::UpdateConfig {
             owner,
             rewards_dispatcher_contract,
@@ -351,13 +337,11 @@ fn query_actual_state(deps: Deps, env: Env) -> StdResult<State> {
 
     // Need total issued for updating the exchange rate
     state.total_statom_issued = query_total_statom_issued(deps)?;
-    let current_batch = CURRENT_BATCH.load(deps.storage)?;
-    let current_requested_statom = current_batch.requested_statom;
 
     if state.total_bond_statom_amount.u128() > actual_total_bonded.u128() {
         state.total_bond_statom_amount = actual_total_bonded;
     }
-    state.update_statom_exchange_rate(state.total_statom_issued, current_requested_statom);
+    state.update_statom_exchange_rate(state.total_statom_issued);
     Ok(state)
 }
 
@@ -394,15 +378,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps, env)?),
-        QueryMsg::CurrentBatch {} => to_binary(&query_current_batch(deps)?),
-        QueryMsg::WithdrawableUnbonded { address } => {
-            to_binary(&query_withdrawable_unbonded(deps, address, env)?)
-        }
         QueryMsg::Parameters {} => to_binary(&query_params(deps)?),
-        QueryMsg::UnbondRequests { address } => to_binary(&query_unbond_requests(deps, address)?),
-        QueryMsg::AllHistory { start_from, limit } => {
-            to_binary(&query_unbond_requests_limitation(deps, start_from, limit)?)
-        }
         QueryMsg::Guardians => to_binary(&query_guardians(deps)?),
     }
 }
@@ -449,29 +425,6 @@ fn query_state(deps: Deps, env: Env) -> StdResult<StateResponse> {
     Ok(res)
 }
 
-fn query_current_batch(deps: Deps) -> StdResult<CurrentBatchResponse> {
-    let current_batch = CURRENT_BATCH.load(deps.storage)?;
-    Ok(CurrentBatchResponse {
-        id: current_batch.id,
-        requested_statom: current_batch.requested_statom,
-    })
-}
-
-fn query_withdrawable_unbonded(
-    deps: Deps,
-    address: String,
-    env: Env,
-) -> StdResult<WithdrawableUnbondedResponse> {
-    let params = PARAMETERS.load(deps.storage)?;
-    let historical_time = env.block.time.seconds() - params.unbonding_period;
-    let all_requests = query_get_finished_amount(deps.storage, address, historical_time)?;
-
-    let withdrawable = WithdrawableUnbondedResponse {
-        withdrawable: all_requests,
-    };
-    Ok(withdrawable)
-}
-
 fn query_params(deps: Deps) -> StdResult<Parameters> {
     PARAMETERS.load(deps.storage)
 }
@@ -487,38 +440,6 @@ pub(crate) fn query_total_statom_issued(deps: Deps) -> StdResult<Uint128> {
             msg: to_binary(&Cw20QueryMsg::TokenInfo {})?,
         }))?;
     Ok(token_info.total_supply)
-}
-
-fn query_unbond_requests(deps: Deps, address: String) -> StdResult<UnbondRequestsResponse> {
-    let requests = get_unbond_requests(deps.storage, address.clone())?;
-    let res = UnbondRequestsResponse { address, requests };
-    Ok(res)
-}
-
-fn query_unbond_requests_limitation(
-    deps: Deps,
-    start: Option<u64>,
-    limit: Option<u32>,
-) -> StdResult<AllHistoryResponse> {
-    let requests = all_unbond_history(deps.storage, start, limit)?;
-    let requests_responses = requests
-        .iter()
-        .map(|r| UnbondHistoryResponse {
-            batch_id: r.batch_id,
-            time: r.time,
-
-            statom_amount: r.statom_amount,
-            statom_applied_exchange_rate: r.statom_applied_exchange_rate,
-            statom_withdraw_rate: r.statom_withdraw_rate,
-
-            released: r.released,
-        })
-        .collect();
-
-    let res = AllHistoryResponse {
-        history: requests_responses,
-    };
-    Ok(res)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
