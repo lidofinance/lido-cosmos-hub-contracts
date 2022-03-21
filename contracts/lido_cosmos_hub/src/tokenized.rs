@@ -41,6 +41,8 @@ use serde::{Deserialize, Serialize};
 pub const TOKENIZE_SHARE_RECORD_BY_DENOM_PATH: &str =
     "/liquidstaking.staking.v1beta1.Query/TokenizeShareRecordByDenom";
 
+pub const TOKENIZE_SHARES_PATH: &str = "/liquidstaking.staking.v1beta1.Msg/TokenizeShares";
+
 // no guarantee this actually works, no way to test it yet
 // TODO: remove unwraps
 fn get_tokenize_share_record_by_denom(
@@ -79,7 +81,7 @@ pub fn build_redeem_tokenize_share_msg(delegator: String, coin: Coin) -> CosmosM
     }
 }
 
-fn build_tokenize_share_msg(
+pub fn build_tokenize_share_msg(
     delegator: String,
     validator: String,
     tokenized_share_owner: String,
@@ -98,7 +100,7 @@ fn build_tokenize_share_msg(
     let encoded_tokenize_msg = Binary::from(tokenize_msg.write_to_bytes().unwrap());
 
     cosmwasm_std::CosmosMsg::Stargate {
-        type_url: "/liquidstaking.staking.v1beta1.Msg/TokenizeShares".to_string(),
+        type_url: TOKENIZE_SHARES_PATH.to_string(),
         value: encoded_tokenize_msg,
     }
 }
@@ -128,10 +130,10 @@ fn get_largest_validator(
     deps: Deps,
     validators_registry_contract: Addr,
 ) -> StdResult<ValidatorResponse> {
-    return deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: validators_registry_contract.to_string(),
         msg: to_binary(&QueryValidators::GetLargestValidator {})?,
-    }));
+    }))
 }
 
 // TODO: remove unwraps
@@ -286,7 +288,7 @@ pub(crate) fn execute_unbond_statom(
     let undelegation_amount = amount * state.statom_exchange_rate;
     state.total_bond_statom_amount = state
         .total_bond_statom_amount
-        .checked_sub(undelegation_amount.clone())?;
+        .checked_sub(undelegation_amount)?;
 
     // Pick the largest validator and check that the burn amount is less than 10% of its stake.
     let validators_registry_contract = if let Some(v) = config.validators_registry_contract {

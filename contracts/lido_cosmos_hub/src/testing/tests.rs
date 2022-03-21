@@ -31,7 +31,7 @@
 //!      });
 //! 4. Anywhere you see query(deps.as_ref(), ...) you must replace it with query(deps.as_mut(), ...)
 use cosmwasm_std::{
-    coin, coins, from_binary, to_binary, Addr, Api, Coin, CosmosMsg, Decimal, DepsMut,
+    coin, coins, from_binary, to_binary, Addr, Api, Binary, Coin, CosmosMsg, Decimal, DepsMut,
     DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps, Querier, QueryRequest, Response,
     StakingMsg, StdError, Storage, Uint128, Validator, WasmMsg, WasmQuery,
 };
@@ -40,21 +40,22 @@ use lido_cosmos_validators_registry::registry::ValidatorResponse as RegistryVali
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::testing::{mock_env, mock_info};
-
 use crate::contract::{execute, instantiate, query};
+use cosmwasm_std::testing::{mock_env, mock_info};
+use protobuf::Message;
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw20_base::msg::ExecuteMsg::{Burn, Mint};
 
-use crate::tokenized::build_redeem_tokenize_share_msg;
+use crate::tokenized::{build_redeem_tokenize_share_msg, TOKENIZE_SHARES_PATH};
 
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::state::CONFIG;
 use lido_cosmos_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
 
+use crate::testing::mock_querier::LARGEST_VALIDATOR;
+use crate::tokenize_share_record::{Coin as ProtoCoin, MsgTokenizeShares, TokenizeShareRecord};
 use crate::tokenized::execute_unbond_statom;
-use crate::tokenize_share_record::TokenizeShareRecord;
 use basset::hub::Cw20HookMsg::Unbond;
 use basset::hub::ExecuteMsg::{CheckSlashing, Receive, UpdateConfig, UpdateParams};
 use basset::hub::QueryMsg::{Config, Parameters as Params, State};
@@ -785,7 +786,10 @@ pub fn proper_receive_statom() {
 
     // set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
-        (&statom_token_contract, &[(&addr1, &Uint128::from(10u128))]),
+        (
+            &statom_token_contract,
+            &[(&addr1, &Uint128::from(10u128))],
+        ),
         (&String::from("token"), &[]),
     ]);
 
@@ -815,7 +819,7 @@ pub fn proper_receive_statom() {
     // successful call
     let successful_unbond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
-        sender: addr1,
+        sender: addr1.clone(),
         amount: Uint128::from(10u64),
         msg: to_binary(&successful_unbond).unwrap(),
     });
@@ -826,19 +830,18 @@ pub fn proper_receive_statom() {
 
     let msg = &res.messages[0];
     match msg.msg.clone() {
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr,
-            msg,
-            funds: _,
-        }) => {
-            assert_eq!(contract_addr, statom_token_contract);
-            assert_eq!(
-                msg,
-                to_binary(&Burn {
-                    amount: Uint128::from(10u64)
-                })
-                .unwrap()
+        CosmosMsg::Stargate { type_url, value } => {
+            assert_eq!(TOKENIZE_SHARES_PATH, type_url);
+
+            let encoded_tokenize_msg = build_binary_tokenize_shares_message(
+                MOCK_CONTRACT_ADDR,
+                LARGEST_VALIDATOR,
+                addr1.as_str(),
+                "10",
+                "uatom",
             );
+
+            assert_eq!(encoded_tokenize_msg, value);
         }
         _ => panic!("Unexpected message: {:?}", msg),
     }
@@ -889,7 +892,7 @@ pub fn proper_unbond_statom() {
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&bob, &Uint128::from(10u128))])]);
 
-    set_delegation(&mut deps.querier, validator.clone(), 10, "uatom");
+    set_delegation(&mut deps.querier, validator, 10, "uatom");
 
     let token_info = mock_info(&statom_token_contract, &[]);
 
@@ -904,11 +907,11 @@ pub fn proper_unbond_statom() {
     assert_eq!(query_state.total_bond_statom_amount, Uint128::from(10u64));
 
     // successful call
-    let successful_bond = Unbond {};
+    let successful_unbond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: bob.clone(),
         amount: Uint128::from(1u64),
-        msg: to_binary(&successful_bond).unwrap(),
+        msg: to_binary(&successful_unbond).unwrap(),
     });
     let res = execute(deps.as_mut(), mock_env(), token_info, receive).unwrap();
     assert_eq!(2, res.messages.len());
@@ -916,11 +919,11 @@ pub fn proper_unbond_statom() {
         .with_token_balances(&[(&statom_token_contract, &[(&bob, &Uint128::from(9u128))])]);
 
     //successful call
-    let successful_bond = Unbond {};
+    let successful_unbond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: bob.clone(),
         amount: Uint128::from(5u64),
-        msg: to_binary(&successful_bond).unwrap(),
+        msg: to_binary(&successful_unbond).unwrap(),
     });
     let token_info = mock_info(&statom_token_contract, &[]);
     let res = execute(deps.as_mut(), mock_env(), token_info.clone(), receive).unwrap();
@@ -930,19 +933,18 @@ pub fn proper_unbond_statom() {
 
     let msg = &res.messages[0];
     match msg.msg.clone() {
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr,
-            msg,
-            funds: _,
-        }) => {
-            assert_eq!(contract_addr, statom_token_contract);
-            assert_eq!(
-                msg,
-                to_binary(&Burn {
-                    amount: Uint128::from(5u64)
-                })
-                .unwrap()
+        CosmosMsg::Stargate { type_url, value } => {
+            assert_eq!(TOKENIZE_SHARES_PATH, type_url);
+
+            let encoded_tokenize_msg = build_binary_tokenize_shares_message(
+                MOCK_CONTRACT_ADDR,
+                LARGEST_VALIDATOR,
+                bob.as_str(),
+                "5",
+                "uatom",
             );
+
+            assert_eq!(encoded_tokenize_msg, value);
         }
         _ => panic!("Unexpected message: {:?}", msg),
     }
@@ -951,13 +953,13 @@ pub fn proper_unbond_statom() {
     // pushing time forward to check the unbond message
     env.block.time = env.block.time.plus_seconds(31);
 
-    let successful_bond = Unbond {};
+    let successful_unbond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: bob.clone(),
         amount: Uint128::from(2u64),
-        msg: to_binary(&successful_bond).unwrap(),
+        msg: to_binary(&successful_unbond).unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), token_info, receive).unwrap();
+    let res = execute(deps.as_mut(), env, token_info, receive).unwrap();
     assert_eq!(2, res.messages.len());
 
     let msg = &res.messages[1];
@@ -979,18 +981,10 @@ pub fn proper_unbond_statom() {
         _ => panic!("Unexpected message: {:?}", msg),
     }
 
-    // making sure the sent message (2nd) is undelegate
-    let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
-        validator: validator.address,
-        amount: coin(8, "uatom"),
-    });
-    assert_eq!(res.messages[0].msg, msgs);
-
     // check the state
     let state = State {};
     let query_state: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
-    assert_eq!(query_state.last_unbonded_time, env.block.time.seconds());
     assert_eq!(query_state.total_bond_statom_amount, Uint128::from(2u64));
 }
 
@@ -1038,7 +1032,7 @@ pub fn proper_undelegate() {
         (sample_delegation(validator3.address.clone(), coin(200, "uatom"))),
     ];
 
-    let validators: [Validator; 3] = [(validator), (validator2.clone()), (validator3.clone())];
+    let validators: [Validator; 3] = [(validator), (validator2), (validator3)];
     set_delegation_query(&mut deps.querier, &delegations, &validators);
     deps.querier.with_token_balances(&[(
         &statom_token_contract,
@@ -1092,26 +1086,21 @@ pub fn proper_undelegate() {
         ],
     )]);
 
-    // check if the undelegate message is send two more than one validator.
-    match &res.messages[0].msg.clone() {
-        CosmosMsg::Staking(StakingMsg::Undelegate {
-            validator: val,
-            amount,
-        }) => {
-            assert_eq!(val, &validator3.address);
-            assert_eq!(amount.amount, Uint128::from(130u64));
+    match res.messages[0].msg.clone() {
+        CosmosMsg::Stargate { type_url, value } => {
+            assert_eq!(TOKENIZE_SHARES_PATH, type_url);
+
+            let encoded_tokenize_msg = build_binary_tokenize_shares_message(
+                MOCK_CONTRACT_ADDR,
+                LARGEST_VALIDATOR,
+                addr2.as_str(),
+                "100",
+                "uatom",
+            );
+
+            assert_eq!(encoded_tokenize_msg, value);
         }
-        _ => panic!("Unexpected message: {:?}", &res.messages[0]),
-    }
-    match &res.messages[1].msg.clone() {
-        CosmosMsg::Staking(StakingMsg::Undelegate {
-            validator: val,
-            amount,
-        }) => {
-            assert_eq!(val, &validator2.address);
-            assert_eq!(amount.amount, Uint128::from(20u64));
-        }
-        _ => panic!("Unexpected message: {:?}", &res.messages[0]),
+        _ => panic!("Unexpected message: {:?}", res.messages[0].msg),
     }
 }
 
@@ -1173,19 +1162,28 @@ pub fn proper_undelegate_respect_distributed_delegation() {
 
     let res = do_unbond(
         deps.as_mut(),
-        addr2,
+        addr2.clone(),
         env,
         token_info,
         Uint128::from(2000u64),
     );
-    assert_eq!(res.messages.len(), 3);
+    assert_eq!(res.messages.len(), 2);
 
-    match &res.messages[0].msg.clone() {
-        CosmosMsg::Staking(StakingMsg::Undelegate {
-            validator: _,
-            amount,
-        }) => assert_eq!(amount.amount, Uint128::from(1250u64)),
-        _ => panic!("Unexpected message: {:?}", &res.messages[0]),
+    match res.messages[0].msg.clone() {
+        CosmosMsg::Stargate { type_url, value } => {
+            assert_eq!(TOKENIZE_SHARES_PATH, type_url);
+
+            let encoded_tokenize_msg = build_binary_tokenize_shares_message(
+                MOCK_CONTRACT_ADDR,
+                LARGEST_VALIDATOR,
+                addr2.as_str(),
+                "2000",
+                "uatom",
+            );
+
+            assert_eq!(encoded_tokenize_msg, value);
+        }
+        _ => panic!("Unexpected message: {:?}", res.messages[0].msg),
     }
 }
 
@@ -1283,7 +1281,7 @@ pub fn proper_slashing_statom() {
         _ => panic!("Unexpected message: {:?}", message),
     }
 
-    set_delegation(&mut deps.querier, validator.clone(), 1800, "uatom");
+    set_delegation(&mut deps.querier, validator, 1800, "uatom");
 
     // update user balance
     deps.querier.with_token_balances(&[
@@ -1312,18 +1310,13 @@ pub fn proper_slashing_statom() {
     ]);
 
     env.block.time = env.block.time.plus_seconds(31);
-    let res = execute_unbond_statom(
+    execute_unbond_statom(
         deps.as_mut(),
         env.clone(),
         Uint128::from(500u64),
         addr1.clone(),
     )
     .unwrap();
-    let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
-        validator: validator.address,
-        amount: coin(900, "uatom"),
-    });
-    assert_eq!(res.messages[0].msg, msgs);
 
     deps.querier.with_token_balances(&[(
         &statom_token_contract,
@@ -1969,4 +1962,24 @@ fn proper_receive_tokenized_share() {
         }
         _ => panic!("Unexpected message: {:?}", mint),
     }
+}
+
+fn build_binary_tokenize_shares_message(
+    delegator: &str,
+    validator: &str,
+    owner: &str,
+    amount: &str,
+    denom: &str,
+) -> Binary {
+    let mut proto_coin = ProtoCoin::new();
+    proto_coin.set_amount(amount.to_string());
+    proto_coin.set_denom(denom.to_string());
+
+    let mut tokenize_msg = MsgTokenizeShares::new();
+    tokenize_msg.set_delegator_address(delegator.to_string());
+    tokenize_msg.set_validator_address(validator.to_string());
+    tokenize_msg.set_tokenized_share_owner(owner.to_string());
+    tokenize_msg.set_amount(proto_coin);
+
+    Binary::from(tokenize_msg.write_to_bytes().unwrap())
 }
