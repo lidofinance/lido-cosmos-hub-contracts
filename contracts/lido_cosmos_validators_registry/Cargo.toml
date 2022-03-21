@@ -38,7 +38,6 @@ schemars = "0.8.0"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6.3" }
 basset = { path = "../../packages/basset", default-features = false, version = "0.1.0"}
-terra-cosmwasm = { version = "2.2.0" }
 cw-storage-plus = { version = "0.8.0", features = ["iterator"]}
 
 [dev-dependencies]

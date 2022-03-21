@@ -1,6 +1,6 @@
 // Copyright 2021 Lido
 //
-// Licensedicensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
@@ -15,15 +15,21 @@
 use basset::hub::{Parameters, QueryMsg};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier, QuerierResult,
-    QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
+    from_slice, to_binary, Coin, ContractResult, CustomQuery, OwnedDeps, Querier, QuerierResult,
+    QueryRequest, SystemError, SystemResult, WasmQuery,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 pub const MOCK_HUB_CONTRACT_ADDR: &str = "hub";
 pub const MOCK_LIDO_FEE_ADDRESS: &str = "lido_fee";
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct CustomQueryWrapper {}
+
+// implement custom query
+impl CustomQuery for CustomQueryWrapper {}
 
 pub fn mock_dependencies(
     contract_balance: &[Coin],
@@ -40,13 +46,13 @@ pub fn mock_dependencies(
 }
 
 pub struct WasmMockQuerier {
-    base: MockQuerier<TerraQueryWrapper>,
+    base: MockQuerier<CustomQueryWrapper>,
 }
 
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
         // MockQuerier doesn't support Custom, so we ignore it completely here
-        let request: QueryRequest<TerraQueryWrapper> = match from_slice(bin_request) {
+        let request: QueryRequest<CustomQueryWrapper> = match from_slice(bin_request) {
             Ok(v) => v,
             Err(e) => {
                 return QuerierResult::Err(SystemError::InvalidRequest {
@@ -60,34 +66,8 @@ impl Querier for WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn handle_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
+    pub fn handle_query(&self, request: &QueryRequest<CustomQueryWrapper>) -> QuerierResult {
         match &request {
-            QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
-                if &TerraRoute::Treasury == route
-                    || &TerraRoute::Market == route
-                    || &TerraRoute::Oracle == route
-                {
-                    match query_data {
-                        TerraQuery::TaxRate {} => {
-                            let res = TaxRateResponse {
-                                rate: Decimal::percent(1),
-                            };
-                            QuerierResult::Ok(ContractResult::from(to_binary(&res)))
-                        }
-                        TerraQuery::TaxCap { denom: _ } => {
-                            let cap = Uint128::from(1000000u128);
-                            let res = TaxCapResponse { cap };
-                            QuerierResult::Ok(ContractResult::from(to_binary(&res)))
-                        }
-                        _ => panic!("DO NOT ENTER HERE"),
-                    }
-                } else {
-                    panic!(
-                        "UNSUPPORTED ROUTE! ROUTE: {:?}, DATA: {:?}",
-                        route, query_data
-                    )
-                }
-            }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if *contract_addr == MOCK_HUB_CONTRACT_ADDR {
                     if msg == &to_binary(&QueryMsg::Parameters {}).unwrap() {
@@ -111,21 +91,7 @@ impl WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn new(base: MockQuerier<TerraQueryWrapper>) -> Self {
+    pub fn new(base: MockQuerier<CustomQueryWrapper>) -> Self {
         WasmMockQuerier { base }
     }
-}
-
-/// ExchangeRatesResponse is data format returned from OracleRequest::ExchangeRates query
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct ExchangeRatesResponse {
-    pub base_denom: String,
-    pub exchange_rates: Vec<ExchangeRateItem>,
-}
-
-/// ExchangeRateItem is data format returned from OracleRequest::ExchangeRates query
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct ExchangeRateItem {
-    pub quote_denom: String,
-    pub exchange_rate: Decimal,
 }

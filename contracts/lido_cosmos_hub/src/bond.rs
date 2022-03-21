@@ -49,9 +49,7 @@ pub fn execute_bond(
 
     // current batch requested fee is need for accurate exchange rate computation.
     let current_batch = CURRENT_BATCH.load(deps.storage)?;
-    let requested_with_fee = match bond_type {
-        BondType::StAtom | BondType::BondRewards => current_batch.requested_statom,
-    };
+    let requested_with_fee = current_batch.requested_statom;
 
     // coin must have be sent along with transaction and it should be in underlying coin denom
     if info.funds.len() > 1usize {
@@ -77,7 +75,6 @@ pub fn execute_bond(
     // get the total supply
     let mut total_supply = state.total_statom_issued;
 
-    // peg recovery fee should be considered
     let mint_amount = match bond_type {
         BondType::StAtom => decimal_division(payment.amount, state.statom_exchange_rate),
         BondType::BondRewards => Uint128::zero(),
@@ -118,8 +115,7 @@ pub fn execute_bond(
         return Err(StdError::generic_err("Validators registry is empty"));
     }
 
-    let (_remaining_buffered_balance, delegations) =
-        calculate_delegations(payment.amount, validators.as_slice())?;
+    let delegations = calculate_delegations(payment.amount, validators.as_slice())?;
 
     let mut external_call_msgs: Vec<cosmwasm_std::CosmosMsg> = vec![];
     for i in 0..delegations.len() {
@@ -132,7 +128,7 @@ pub fn execute_bond(
         }));
     }
 
-    //we don't need to mint stAtom when bonding rewards
+    // we don't need to mint stAtom when bonding rewards
     if bond_type == BondType::BondRewards {
         let res = Response::new()
             .add_messages(external_call_msgs)
@@ -149,16 +145,9 @@ pub fn execute_bond(
         amount: mint_amount,
     };
 
-    let token_address = match bond_type {
-        BondType::StAtom => config
-            .statom_token_contract
-            .ok_or_else(|| StdError::generic_err("the token contract must have been registered"))?,
-        BondType::BondRewards => {
-            return Err(StdError::generic_err(
-                "can't mint tokens when bonding rewards",
-            ));
-        }
-    };
+    let token_address = config
+        .statom_token_contract
+        .ok_or_else(|| StdError::generic_err("the token contract must have been registered"))?;
 
     external_call_msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: token_address.to_string(),

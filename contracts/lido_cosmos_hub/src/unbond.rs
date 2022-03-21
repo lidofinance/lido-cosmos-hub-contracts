@@ -33,17 +33,15 @@ pub fn execute_withdraw_unbonded(
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response> {
-    let sender_human = info.sender;
-    let contract_address = env.contract.address.clone();
-
-    // read params
     let params = PARAMETERS.load(deps.storage)?;
-    let unbonding_period = params.unbonding_period;
-    let coin_denom = params.underlying_coin_denom;
-
     if params.paused.unwrap_or(false) {
         return Err(StdError::generic_err("The contract is temporarily paused"));
     }
+    let sender_human = info.sender;
+    let contract_address = env.contract.address.clone();
+    let unbonding_period = params.unbonding_period;
+    let coin_denom = params.underlying_coin_denom;
+
     let historical_time = env.block.time.seconds() - unbonding_period;
 
     // query hub balance for process withdraw rate.
@@ -242,8 +240,8 @@ fn process_withdraw_rate(
     Ok(())
 }
 
-fn pick_validator(deps: &DepsMut, claim: Uint128, delegator: String) -> StdResult<Vec<CosmosMsg>> {
-    //read params
+fn undelegate(deps: &DepsMut, claim: Uint128, delegator: String) -> StdResult<Vec<CosmosMsg>> {
+    // read params
     let params = PARAMETERS.load(deps.storage)?;
     let coin_denom = params.underlying_coin_denom;
 
@@ -349,7 +347,7 @@ fn process_undelegations(
     let delegator = env.contract.address;
 
     // Send undelegated requests to possibly more than one validators
-    let undelegated_msgs = pick_validator(deps, statom_undelegation_amount, delegator.to_string())?;
+    let undelegated_msgs = undelegate(deps, statom_undelegation_amount, delegator.to_string())?;
 
     state.total_bond_statom_amount = state
         .total_bond_statom_amount

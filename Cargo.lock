@@ -54,7 +54,6 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
- "terra-cosmwasm",
  "thiserror",
 ]
 
@@ -814,7 +813,6 @@ dependencies = [
  "serde",
  "signed_integer",
  "snafu",
- "terra-cosmwasm",
 ]
 
 [[package]]
@@ -829,7 +827,6 @@ dependencies = [
  "schemars",
  "serde",
  "snafu",
- "terra-cosmwasm",
 ]
 
 [[package]]
@@ -861,7 +858,6 @@ dependencies = [
  "schemars",
  "serde",
  "snafu",
- "terra-cosmwasm",
 ]
 
 [[package]]
@@ -1396,7 +1392,6 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
- "terra-cosmwasm",
 ]
 
 [[package]]
@@ -1488,17 +1483,6 @@ dependencies = [
  "redox_syscall",
  "remove_dir_all",
  "winapi",
-]
-
-[[package]]
-name = "terra-cosmwasm"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "552f18cba2b535d1f8c0e3b3f37696820b954bc7535d2e33909f2a6342302718"
-dependencies = [
- "cosmwasm-std",
- "schemars",
- "serde",
 ]
 
 [[package]]

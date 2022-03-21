@@ -133,7 +133,7 @@ fn test_update_config() {
     let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    //check call from invalid owner
+    // check call from invalid owner
     let invalid_owner = String::from("invalid_owner");
     let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: Some(String::from("some_addr")),
