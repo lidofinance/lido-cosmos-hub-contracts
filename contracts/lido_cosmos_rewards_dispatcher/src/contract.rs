@@ -17,14 +17,12 @@ use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
     attr, to_binary, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, WasmMsg,
+    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
 use basset::hub::{is_paused, ExecuteMsg::BondRewards};
-use basset::{compute_lido_fee, deduct_tax};
-use terra_cosmwasm::TerraMsgWrapper;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -47,12 +45,7 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    msg: ExecuteMsg,
-) -> StdResult<Response<TerraMsgWrapper>> {
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::DispatchRewards {} => execute_dispatch_rewards(deps, env, info),
         ExecuteMsg::UpdateConfig {
@@ -84,7 +77,7 @@ pub fn execute_update_config(
     statom_reward_denom: Option<String>,
     lido_fee_address: Option<String>,
     lido_fee_rate: Option<Decimal>,
-) -> StdResult<Response<TerraMsgWrapper>> {
+) -> StdResult<Response> {
     let conf: Config = CONFIG.load(deps.storage)?;
     let sender_raw = deps.api.addr_validate(info.sender.as_str())?;
     if sender_raw != conf.owner {
@@ -134,11 +127,7 @@ pub fn execute_update_config(
     Ok(Response::default())
 }
 
-pub fn execute_dispatch_rewards(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-) -> StdResult<Response<TerraMsgWrapper>> {
+pub fn execute_dispatch_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config: Config = CONFIG.load(deps.storage)?;
     if is_paused(deps.as_ref(), config.hub_contract.clone().into_string())? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
@@ -154,28 +143,22 @@ pub fn execute_dispatch_rewards(
         .querier
         .query_balance(contr_addr, config.statom_reward_denom.clone())?;
 
-    let lido_statom_fee_amount = compute_lido_fee(statom_rewards.amount, config.lido_fee_rate)?;
+    let lido_statom_fee_amount = compute_lido_fee(statom_rewards.amount, config.lido_fee_rate);
     statom_rewards.amount = statom_rewards.amount.checked_sub(lido_statom_fee_amount)?;
 
     let mut fees_attrs: Vec<Attribute> = vec![];
 
     let mut lido_fees: Vec<Coin> = vec![];
     if !lido_statom_fee_amount.is_zero() {
-        let statom_fee = deduct_tax(
-            &deps.querier,
-            Coin {
-                amount: lido_statom_fee_amount,
-                denom: config.statom_reward_denom.clone(),
-            },
-        )?;
-        if !statom_fee.amount.is_zero() {
-            lido_fees.push(statom_fee.clone());
-            fees_attrs.push(attr("lido_statom_fee", statom_fee.to_string()));
-        }
+        let statom_fee = Coin {
+            amount: lido_statom_fee_amount,
+            denom: config.statom_reward_denom.clone(),
+        };
+        lido_fees.push(statom_fee.clone());
+        fees_attrs.push(attr("lido_statom_fee", statom_fee.to_string()));
     }
-    let mut messages: Vec<CosmosMsg<TerraMsgWrapper>> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
     if !statom_rewards.amount.is_zero() {
-        statom_rewards = deduct_tax(&deps.querier, statom_rewards)?;
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: hub_addr.to_string(),
             msg: to_binary(&BondRewards {}).unwrap(),
@@ -217,4 +200,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
+}
+
+pub fn compute_lido_fee(amount: Uint128, fee_rate: Decimal) -> Uint128 {
+    amount * fee_rate
 }

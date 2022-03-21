@@ -1,7 +1,7 @@
 [package]
 name = "lido_cosmos_hub"
 version = "1.0.0"
-authors = ["MSNTCS <mohammad@terra.money>"]
+authors = ["Andrew Zavgorodny <andrei.z@p2p.org>","Mike Mozhaev <misha.m@p2p.org>","Sergey Golyshkin <sergey.g@p2p.org>"]
 edition = "2018"
 
 exclude = [
@@ -38,7 +38,6 @@ cw20-base = { version = "0.8.0", features = ["library"] }
 cosmwasm-std = { version = "0.16.0", features = ["staking", "stargate"] }
 cosmwasm-storage = { version = "0.16.0", features = ["iterator"] }
 cw-storage-plus = { version = "0.8.0", features = ["iterator"]}
-terra-cosmwasm = { version = "2.2.0" }
 schemars = "0.8.0"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6.3" }

@@ -47,11 +47,14 @@ use crate::contract::{execute, instantiate, query};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw20_base::msg::ExecuteMsg::{Burn, Mint};
 
+use crate::tokenized::build_redeem_tokenize_share_msg;
+
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::state::CONFIG;
 use lido_cosmos_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
 
 use crate::tokenized::execute_unbond_statom;
+use crate::tokenize_share_record::TokenizeShareRecord;
 use basset::hub::Cw20HookMsg::Unbond;
 use basset::hub::ExecuteMsg::{CheckSlashing, Receive, UpdateConfig, UpdateParams};
 use basset::hub::QueryMsg::{Config, Parameters as Params, State};
@@ -124,6 +127,31 @@ pub fn do_register_validator(
         total_delegated: Default::default(),
         address: validator.address,
     });
+}
+
+pub fn do_register_tokenize_share_record(
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
+    record: TokenizeShareRecord,
+) {
+    deps.querier.add_tokenize_share_record(record);
+}
+
+fn new_tokenize_share(
+    id: u64,
+    owner: String,
+    module_account: String,
+    denom: String,
+    validator: String,
+) -> TokenizeShareRecord {
+    let mut record = TokenizeShareRecord::new();
+
+    record.set_id(id);
+    record.set_owner(owner);
+    record.set_module_account(module_account);
+    record.set_share_token_denom(denom);
+    record.set_validator(validator);
+
+    record
 }
 
 pub fn do_bond_statom(
@@ -326,7 +354,7 @@ fn proper_bond_for_st_atom() {
         StdError::generic_err("No uatom assets are provided to bond")
     );
 
-    //send other tokens than atom funds
+    // send other tokens than atom funds
     let bob = String::from("bob");
     let failed_bond = ExecuteMsg::BondForStAtom {};
 
@@ -337,7 +365,7 @@ fn proper_bond_for_st_atom() {
         StdError::generic_err("No uatom assets are provided to bond")
     );
 
-    //bond with more than one coin is not possible
+    // bond with more than one coin is not possible
     let info = mock_info(
         &addr1,
         &[
@@ -439,7 +467,7 @@ fn proper_bond_rewards() {
 
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&addr1, &bond_amount)])]);
 
@@ -466,7 +494,7 @@ fn proper_bond_rewards() {
         StdError::generic_err("No uatom assets are provided to bond")
     );
 
-    //send other tokens than atom funds
+    // send other tokens than atom funds
     let failed_bond = ExecuteMsg::BondRewards {};
 
     let info = mock_info(&reward_dispatcher_contract, &[coin(10, "ukrt")]);
@@ -476,7 +504,7 @@ fn proper_bond_rewards() {
         StdError::generic_err("No uatom assets are provided to bond")
     );
 
-    //bond with more than one coin is not possible
+    // bond with more than one coin is not possible
     let info = mock_info(
         &reward_dispatcher_contract,
         &[
@@ -491,7 +519,7 @@ fn proper_bond_rewards() {
         StdError::generic_err("More than one coin is sent; only one asset is supported")
     );
 
-    //bond from non-dispatcher address
+    // bond from non-dispatcher address
     let info = mock_info(
         &String::from("random_address"),
         &[coin(bond_amount.u128(), "uatom")],
@@ -539,11 +567,11 @@ pub fn proper_update_global_index() {
     // bond
     do_bond_statom(&mut deps, addr1.clone(), bond_amount);
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&addr1, &bond_amount)])]);
 
-    //set delegation for query-all-delegation
+    // set delegation for query-all-delegation
     let delegations: [FullDelegation; 1] = [(sample_delegation(
         validator.address.clone(),
         coin(bond_amount.u128() * 2, "uatom"),
@@ -553,7 +581,7 @@ pub fn proper_update_global_index() {
 
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&addr1, &bond_amount)])]);
 
@@ -613,7 +641,7 @@ pub fn proper_update_global_index_two_validators() {
     // bond
     do_bond_statom(&mut deps, addr1.clone(), Uint128::from(10u64));
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
         (&String::from("token"), &[(&addr1, &Uint128::from(10u128))]),
         (&statom_token_contract, &[(&addr1, &Uint128::from(10u64))]),
@@ -625,7 +653,7 @@ pub fn proper_update_global_index_two_validators() {
     // bond to the second validator
     do_bond_statom(&mut deps, addr1.clone(), Uint128::from(10u64));
 
-    //set delegation for query-all-delegation
+    // set delegation for query-all-delegation
     let delegations: [FullDelegation; 2] = [
         (sample_delegation(validator.address.clone(), coin(10, "uatom"))),
         (sample_delegation(validator2.address.clone(), coin(10, "uatom"))),
@@ -634,7 +662,7 @@ pub fn proper_update_global_index_two_validators() {
     let validators: [Validator; 2] = [(validator.clone()), (validator2.clone())];
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&addr1, &Uint128::from(10u64))])]);
 
@@ -690,21 +718,21 @@ pub fn proper_update_global_index_respect_one_registered_validator() {
     // bond
     do_bond_statom(&mut deps, addr1.clone(), Uint128::from(10u64));
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&addr1, &Uint128::from(10u64))])]);
 
     // register_validator 2 but will not bond anything to it
     do_register_validator(&mut deps, validator2);
 
-    //set delegation for query-all-delegation
+    // set delegation for query-all-delegation
     let delegations: [FullDelegation; 1] =
         [(sample_delegation(validator.address.clone(), coin(10, "uatom")))];
 
     let validators: [Validator; 1] = [(validator.clone())];
     set_delegation_query(&mut deps.querier, &delegations, &validators);
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&addr1, &Uint128::from(10u64))])]);
 
@@ -755,7 +783,7 @@ pub fn proper_receive_statom() {
     do_bond_statom(&mut deps, addr1.clone(), Uint128::from(10u64));
     set_delegation(&mut deps.querier, validator, 10, "uatom");
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
         (&statom_token_contract, &[(&addr1, &Uint128::from(10u128))]),
         (&String::from("token"), &[]),
@@ -857,7 +885,7 @@ pub fn proper_unbond_statom() {
         _ => panic!("Unexpected message: {:?}", delegate),
     }
 
-    //set bob's balance to 10 in token contract
+    // set bob's balance to 10 in token contract
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&bob, &Uint128::from(10u128))])]);
 
@@ -920,7 +948,7 @@ pub fn proper_unbond_statom() {
     }
 
     let mut env = mock_env();
-    //pushing time forward to check the unbond message
+    // pushing time forward to check the unbond message
     env.block.time = env.block.time.plus_seconds(31);
 
     let successful_bond = Unbond {};
@@ -951,7 +979,7 @@ pub fn proper_unbond_statom() {
         _ => panic!("Unexpected message: {:?}", msg),
     }
 
-    //making sure the sent message (2nd) is undelegate
+    // making sure the sent message (2nd) is undelegate
     let msgs: CosmosMsg = CosmosMsg::Staking(StakingMsg::Undelegate {
         validator: validator.address,
         amount: coin(8, "uatom"),
@@ -966,10 +994,10 @@ pub fn proper_unbond_statom() {
     assert_eq!(query_state.total_bond_statom_amount, Uint128::from(2u64));
 }
 
-/// Covers if the pick_validator function sends different Undelegate messages
+/// Covers if the undelegate function sends different Undelegate messages
 /// to different validators, when a validator does not have enough delegation.
 #[test]
-pub fn proper_pick_validator() {
+pub fn proper_undelegate() {
     let mut deps = dependencies(&[]);
 
     let addr1 = String::from("addr1000");
@@ -1053,7 +1081,6 @@ pub fn proper_pick_validator() {
         Uint128::from(100u64),
     );
 
-    println!(">>>>>>>>>>>>>> {:?}", res.messages);
     assert_eq!(res.messages.len(), 2);
 
     deps.querier.with_token_balances(&[(
@@ -1065,7 +1092,7 @@ pub fn proper_pick_validator() {
         ],
     )]);
 
-    //check if the undelegate message is send two more than one validator.
+    // check if the undelegate message is send two more than one validator.
     match &res.messages[0].msg.clone() {
         CosmosMsg::Staking(StakingMsg::Undelegate {
             validator: val,
@@ -1088,11 +1115,11 @@ pub fn proper_pick_validator() {
     }
 }
 
-/// Covers if the pick_validator function sends different Undelegate messages
+/// Covers if the undelegate function sends different Undelegate messages
 /// if the delegations of the user are distributed to several validators
 /// and if the user wants to unbond amount that none of validators has.
 #[test]
-pub fn proper_pick_validator_respect_distributed_delegation() {
+pub fn proper_undelegate_respect_distributed_delegation() {
     let mut deps = dependencies(&[]);
 
     let addr1 = String::from("addr1000");
@@ -1185,10 +1212,10 @@ pub fn proper_slashing_statom() {
     // register_validator
     do_register_validator(&mut deps, validator.clone());
 
-    //bond
+    // bond
     do_bond_statom(&mut deps, addr1.clone(), Uint128::from(1000u64));
 
-    //this will set the balance of the user in token contract
+    // this will set the balance of the user in token contract
     deps.querier.with_token_balances(&[
         (
             &statom_token_contract,
@@ -1210,7 +1237,7 @@ pub fn proper_slashing_statom() {
         from_binary(&query(deps.as_ref(), mock_env(), ex_rate).unwrap()).unwrap();
     assert_eq!(query_exchange_rate.statom_exchange_rate.to_string(), "0.9");
 
-    //bond again to see the update exchange rate
+    // bond again to see the update exchange rate
     let second_bond = ExecuteMsg::BondForStAtom {};
 
     let info = mock_info(&addr1, &[coin(900, "uatom")]);
@@ -1258,7 +1285,7 @@ pub fn proper_slashing_statom() {
 
     set_delegation(&mut deps.querier, validator.clone(), 1800, "uatom");
 
-    //update user balance
+    // update user balance
     deps.querier.with_token_balances(&[
         (
             &statom_token_contract,
@@ -1340,7 +1367,7 @@ pub fn test_update_params() {
     let _validator = sample_validator(DEFAULT_VALIDATOR);
     set_validator_mock(&mut deps.querier);
 
-    //test with no swap denom.
+    // test with no swap denom.
     let update_prams = UpdateParams {
         max_burn_rate: Decimal::from_ratio(Uint128::new(10), Uint128::new(100)),
     };
@@ -1375,7 +1402,7 @@ pub fn test_update_params() {
         max_burn_rate: Decimal::from_ratio(Uint128::new(20), Uint128::new(100)),
     };
 
-    //the result must be 1
+    // the result must be 1
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
     let res = execute(deps.as_mut(), mock_env(), creator_info, update_prams).unwrap();
     assert_eq!(res.messages.len(), 0);
@@ -1413,7 +1440,7 @@ pub fn proper_update_config() {
     let config_query: ConfigResponse =
         from_binary(&query(deps.as_ref(), mock_env(), config).unwrap()).unwrap();
 
-    //make sure the other configs are still the same.
+    // make sure the other configs are still the same.
     assert_eq!(
         &config_query.reward_dispatcher_contract.unwrap(),
         &reward_contract
@@ -1455,7 +1482,7 @@ pub fn proper_update_config() {
     let res = execute(deps.as_mut(), mock_env(), new_owner_info, update_prams).unwrap();
     assert_eq!(res.messages.len(), 0);
 
-    //previous owner cannot send this message
+    // previous owner cannot send this message
     let update_prams = UpdateParams {
         max_burn_rate: Decimal::from_ratio(Uint128::new(10), Uint128::new(100)),
     };
@@ -1491,7 +1518,7 @@ pub fn proper_update_config() {
     let config_query: ConfigResponse =
         from_binary(&query(deps.as_ref(), mock_env(), config).unwrap()).unwrap();
 
-    //make sure the other configs are still the same.
+    // make sure the other configs are still the same.
     assert_eq!(
         config_query.reward_dispatcher_contract.unwrap(),
         String::from("new reward")
@@ -1556,6 +1583,24 @@ fn set_delegation(querier: &mut WasmMockQuerier, validator: Validator, amount: u
     );
 }
 
+fn set_custom_delegation(
+    querier: &mut WasmMockQuerier,
+    delegator: Addr,
+    validator: Validator,
+    amount: u128,
+    denom: &str,
+) {
+    querier.update_staking(
+        "uatom",
+        &[validator.clone()],
+        &[custom_delegation(
+            delegator,
+            validator.address,
+            coin(amount, denom),
+        )],
+    );
+}
+
 fn set_delegation_query(
     querier: &mut WasmMockQuerier,
     delegate: &[FullDelegation],
@@ -1570,6 +1615,18 @@ fn sample_delegation(addr: String, amount: Coin) -> FullDelegation {
     FullDelegation {
         validator: addr,
         delegator: Addr::unchecked(String::from(MOCK_CONTRACT_ADDR)),
+        amount,
+        can_redelegate,
+        accumulated_rewards,
+    }
+}
+
+fn custom_delegation(delegator: Addr, validator: String, amount: Coin) -> FullDelegation {
+    let can_redelegate = amount.clone();
+    let accumulated_rewards = coins(0, &amount.denom);
+    FullDelegation {
+        validator,
+        delegator,
         amount,
         can_redelegate,
         accumulated_rewards,
@@ -1609,7 +1666,7 @@ fn proper_redelegate_proxy() {
         redelegations: vec![(String::from("dst_validator"), Coin::new(100, "uatom"))],
     };
 
-    //invalid sender
+    // invalid sender
     let info = mock_info(&addr1, &[]);
     let res = execute(
         deps.as_mut(),
@@ -1821,4 +1878,95 @@ pub fn test_guardians() {
         res.unwrap_err(),
         StdError::generic_err("the contract is temporarily paused")
     );
+}
+
+#[test]
+fn proper_receive_tokenized_share() {
+    let mut deps = dependencies(&[]);
+
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    let validator2 = sample_validator(DEFAULT_VALIDATOR2);
+    let validator3 = sample_validator(DEFAULT_VALIDATOR3);
+    set_validator_mock(&mut deps.querier);
+
+    let addr1 = String::from("addr1000");
+    let module_account = String::from("module_address");
+    let tokenize_shares_amount = Uint128::from(100u64);
+
+    let owner = String::from("owner1");
+    let statom_token_contract = String::from("statom_token");
+    let reward_contract = String::from("reward");
+
+    let share_denom = String::from("share_denom");
+
+    initialize(
+        deps.borrow_mut(),
+        owner,
+        reward_contract,
+        statom_token_contract.clone(),
+    );
+
+    // register_validator
+    do_register_validator(&mut deps, validator.clone());
+    do_register_validator(&mut deps, validator2);
+    do_register_validator(&mut deps, validator3);
+
+    do_register_tokenize_share_record(
+        &mut deps,
+        new_tokenize_share(
+            1,
+            addr1.clone(),
+            module_account.clone(),
+            share_denom.clone(),
+            validator.address.clone(),
+        ),
+    );
+
+    set_custom_delegation(
+        &mut deps.querier,
+        Addr::unchecked(module_account),
+        validator,
+        100,
+        "uatom",
+    );
+
+    let receive_tokenized_share_msg = ExecuteMsg::ReceiveTokenizedShare {};
+
+    let info = mock_info(
+        &addr1,
+        &[coin(tokenize_shares_amount.u128(), share_denom.clone())],
+    );
+
+    let res = execute(deps.as_mut(), mock_env(), info, receive_tokenized_share_msg).unwrap();
+    assert_eq!(2, res.messages.len());
+
+    let redeem = &res.messages[0];
+    if redeem.msg.clone()
+        != build_redeem_tokenize_share_msg(
+            MOCK_CONTRACT_ADDR.to_string(),
+            Coin::new(100, share_denom),
+        )
+    {
+        panic!("Unexpected message: {:?}", redeem)
+    }
+
+    let mint = &res.messages[1];
+    match mint.msg.clone() {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr,
+            msg,
+            funds: _,
+        }) => {
+            assert_eq!(contract_addr, statom_token_contract);
+            assert_eq!(
+                msg,
+                to_binary(&Cw20ExecuteMsg::Mint {
+                    recipient: addr1,
+                    amount: tokenize_shares_amount,
+                })
+                .unwrap()
+            )
+        }
+        _ => panic!("Unexpected message: {:?}", mint),
+    }
 }

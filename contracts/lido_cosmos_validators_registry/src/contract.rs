@@ -37,7 +37,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: deps.api.addr_validate(info.sender.as_str())?,
+            owner: info.sender,
             hub_contract: deps.api.addr_validate(msg.hub_contract.as_str())?,
         },
     )?;
@@ -107,7 +107,7 @@ pub fn add_validator(
     let config = CONFIG.load(deps.storage)?;
     let owner_address = config.owner;
     let hub_address = config.hub_contract;
-    if info.sender != owner_address && info.sender != hub_address {
+    if !(info.sender == owner_address || info.sender == hub_address) {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -161,7 +161,7 @@ pub fn remove_validator(
                 return StdResult::Ok(Response::new());
             }
 
-            let (_, delegations) =
+            let delegations =
                 calculate_delegations(delegation.amount.amount, validators.as_slice())?;
 
             for i in 0..delegations.len() {
@@ -260,6 +260,7 @@ fn query_validators(deps: Deps) -> StdResult<Vec<ValidatorResponse>> {
             total_delegated: Default::default(),
             address: item?.1.address,
         };
+        // TODO: check that cosmos cosmwasm module has this bug or not
         // There is a bug in terra/core.
         // The bug happens when we do query_delegation() but there are no delegation pair (delegator-validator)
         // but query_delegation() fails with a parse error cause terra/core returns an empty FullDelegation struct
