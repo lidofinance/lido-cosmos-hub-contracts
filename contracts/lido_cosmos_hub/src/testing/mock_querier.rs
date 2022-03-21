@@ -15,8 +15,8 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, to_vec, Addr, AllBalanceResponse, Api, BalanceResponse,
-    BankQuery, Coin, ContractResult, CustomQuery, Empty, FullDelegation, OwnedDeps, Querier,
-    QuerierResult, QueryRequest, StdError, StdResult, SystemError, SystemResult, Uint128,
+    BankQuery, Binary, Coin, ContractResult, CustomQuery, Empty, FullDelegation, OwnedDeps,
+    Querier, QuerierResult, QueryRequest, StdError, StdResult, SystemError, SystemResult, Uint128,
     Validator, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
@@ -24,8 +24,15 @@ use cw20_base::state::{MinterData, TokenInfo};
 use lido_cosmos_validators_registry::registry::ValidatorResponse as RegistryValidator;
 use std::collections::HashMap;
 
+use crate::tokenize_share_record::{
+    QueryTokenizeShareRecordByDenomRequest, QueryTokenizeShareRecordByDenomResponse,
+    TokenizeShareRecord,
+};
+use crate::tokenized::TOKENIZE_SHARE_RECORD_BY_DENOM_PATH;
 use basset::hub::Config;
 use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg};
+use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
+use protobuf::Message;
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -67,6 +74,7 @@ pub struct WasmMockQuerier {
     token_querier: TokenQuerier,
     balance_querier: BalanceQuerier,
     validators: Vec<RegistryValidator>,
+    tokenize_share_records: Vec<TokenizeShareRecord>,
 }
 
 impl Querier for WasmMockQuerier {
@@ -88,11 +96,48 @@ impl Querier for WasmMockQuerier {
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<CustomQueryWrapper>) -> QuerierResult {
         match &request {
+            QueryRequest::Stargate { path, data } => {
+                if path.as_str() == TOKENIZE_SHARE_RECORD_BY_DENOM_PATH {
+                    let request: QueryTokenizeShareRecordByDenomRequest =
+                        Message::parse_from_bytes(data.as_slice()).unwrap();
+                    let mut response = QueryTokenizeShareRecordByDenomResponse::new();
+                    let record = self
+                        .tokenize_share_records
+                        .iter()
+                        .find(|r| r.share_token_denom == request.denom);
+                    if record.is_none() {
+                        return SystemResult::Err(SystemError::InvalidRequest {
+                            error: format!("Not found {}", request.denom),
+                            request: Binary::from(request.write_to_bytes().unwrap()),
+                        });
+                    }
+                    response.set_record(record.unwrap().clone());
+
+                    SystemResult::Ok(ContractResult::from(to_binary(&Binary::from(
+                        response.write_to_bytes().unwrap(),
+                    ))))
+                } else {
+                    unimplemented!()
+                }
+            }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if contract_addr == VALIDATORS_REGISTRY {
-                    let mut validators = self.validators.clone();
-                    validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
-                    return SystemResult::Ok(ContractResult::from(to_binary(&validators)));
+                    match from_binary(msg).unwrap() {
+                        QueryValidators::HasValidator { address } => {
+                            return SystemResult::Ok(ContractResult::from(to_binary(
+                                &self.validators.iter().any(|v| v.address == address),
+                            )))
+                        }
+                        QueryValidators::GetValidatorsForDelegation {} => {
+                            let mut validators = self.validators.clone();
+                            validators
+                                .sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
+                            return SystemResult::Ok(ContractResult::from(to_binary(&validators)));
+                        }
+                        _ => {
+                            unimplemented!()
+                        }
+                    }
                 }
                 match from_binary(msg).unwrap() {
                     Cw20QueryMsg::TokenInfo {} => {
@@ -240,7 +285,7 @@ impl WasmMockQuerier {
                     };
                     QuerierResult::Ok(ContractResult::from(to_binary(&bank_res)))
                 } else {
-                    unimplemented!()
+                    self.base.handle_query(request)
                 }
             }
             _ => self.base.handle_query(request),
@@ -346,6 +391,7 @@ impl WasmMockQuerier {
             token_querier: TokenQuerier::default(),
             balance_querier: BalanceQuerier::default(),
             validators: vec![],
+            tokenize_share_records: vec![],
         }
     }
 
@@ -360,5 +406,9 @@ impl WasmMockQuerier {
 
     pub fn add_validator(&mut self, validator: RegistryValidator) {
         self.validators.push(validator);
+    }
+
+    pub fn add_tokenize_share_record(&mut self, record: TokenizeShareRecord) {
+        self.tokenize_share_records.push(record);
     }
 }

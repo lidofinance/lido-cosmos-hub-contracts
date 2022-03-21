@@ -32,6 +32,12 @@ use protobuf::Message;
 use std::ops::Mul;
 use std::string::String;
 
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+pub const TOKENIZE_SHARE_RECORD_BY_DENOM_PATH: &str =
+    "/liquidstaking.staking.v1beta1.Query/TokenizeShareRecordByDenom";
+
 // no guarantee this actually works, no way to test it yet
 // TODO: remove unwraps
 fn get_tokenize_share_record_by_denom(
@@ -42,7 +48,7 @@ fn get_tokenize_share_record_by_denom(
     query_data.set_denom(denom);
 
     let response: Binary = deps.querier.query(&QueryRequest::Stargate {
-        path: "/liquidstaking.staking.v1beta1.Query/TokenizeShareRecordByDenom".to_string(),
+        path: TOKENIZE_SHARE_RECORD_BY_DENOM_PATH.to_string(),
         data: Binary::from(query_data.write_to_bytes().unwrap()),
     })?;
 
@@ -53,7 +59,7 @@ fn get_tokenize_share_record_by_denom(
 }
 
 // TODO: remove unwraps
-fn build_redeem_tokenize_share_msg(delegator: String, coin: Coin) -> CosmosMsg {
+pub fn build_redeem_tokenize_share_msg(delegator: String, coin: Coin) -> CosmosMsg {
     let mut proto_coin = ProtoCoin::new();
     proto_coin.set_amount(coin.amount.to_string());
     proto_coin.set_denom(coin.denom);
@@ -82,6 +88,13 @@ fn is_known_validator(
     }))?;
 
     Ok(is_known_validator)
+}
+
+// Need to create this struct by myself, because we it's defined as importable in the lib
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct DelegationResponse {
+    pub delegation: Option<FullDelegation>,
 }
 
 // TODO: remove unwraps
@@ -145,14 +158,14 @@ pub fn receive_tokenized_share(
         // We need to get the delegation info. The .amount field contains the amount of
         // tokens that is calculated using the corresponding amount of shares (see
         // https://github.com/CosmWasm/wasmd/blob/master/x/wasm/keeper/query_plugins.go#L397)
-        let delegation_response: Option<FullDelegation> =
+        let delegation_response: DelegationResponse =
             deps.querier
                 .query(&QueryRequest::Staking(StakingQuery::Delegation {
                     delegator: tokenize_share.module_account,
                     validator: tokenize_share.validator,
                 }))?;
 
-        let delegation: FullDelegation = if let Some(d) = delegation_response {
+        let delegation: FullDelegation = if let Some(d) = delegation_response.delegation {
             d
         } else {
             return Err(StdError::generic_err(format!(

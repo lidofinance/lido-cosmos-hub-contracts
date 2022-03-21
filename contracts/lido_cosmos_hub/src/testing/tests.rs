@@ -48,10 +48,13 @@ use crate::unbond::execute_unbond_statom;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw20_base::msg::ExecuteMsg::{Burn, Mint};
 
+use crate::tokenized::build_redeem_tokenize_share_msg;
+
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::state::{read_unbond_wait_list, CONFIG};
 use lido_cosmos_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
 
+use crate::tokenize_share_record::TokenizeShareRecord;
 use basset::hub::Cw20HookMsg::Unbond;
 use basset::hub::ExecuteMsg::{CheckSlashing, Receive, UpdateConfig, UpdateParams};
 use basset::hub::QueryMsg::{
@@ -127,6 +130,31 @@ pub fn do_register_validator(
         total_delegated: Default::default(),
         address: validator.address,
     });
+}
+
+pub fn do_register_tokenize_share_record(
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
+    record: TokenizeShareRecord,
+) {
+    deps.querier.add_tokenize_share_record(record);
+}
+
+fn new_tokenize_share(
+    id: u64,
+    owner: String,
+    module_account: String,
+    denom: String,
+    validator: String,
+) -> TokenizeShareRecord {
+    let mut record = TokenizeShareRecord::new();
+
+    record.set_id(id);
+    record.set_owner(owner);
+    record.set_module_account(module_account);
+    record.set_share_token_denom(denom);
+    record.set_validator(validator);
+
+    record
 }
 
 pub fn do_bond_statom(
@@ -2344,6 +2372,24 @@ fn set_delegation(querier: &mut WasmMockQuerier, validator: Validator, amount: u
     );
 }
 
+fn set_custom_delegation(
+    querier: &mut WasmMockQuerier,
+    delegator: Addr,
+    validator: Validator,
+    amount: u128,
+    denom: &str,
+) {
+    querier.update_staking(
+        "uatom",
+        &[validator.clone()],
+        &[custom_delegation(
+            delegator,
+            validator.address,
+            coin(amount, denom),
+        )],
+    );
+}
+
 fn set_delegation_query(
     querier: &mut WasmMockQuerier,
     delegate: &[FullDelegation],
@@ -2358,6 +2404,18 @@ fn sample_delegation(addr: String, amount: Coin) -> FullDelegation {
     FullDelegation {
         validator: addr,
         delegator: Addr::unchecked(String::from(MOCK_CONTRACT_ADDR)),
+        amount,
+        can_redelegate,
+        accumulated_rewards,
+    }
+}
+
+fn custom_delegation(delegator: Addr, validator: String, amount: Coin) -> FullDelegation {
+    let can_redelegate = amount.clone();
+    let accumulated_rewards = coins(0, &amount.denom);
+    FullDelegation {
+        validator,
+        delegator,
         amount,
         can_redelegate,
         accumulated_rewards,
@@ -2609,4 +2667,95 @@ pub fn test_guardians() {
         res.unwrap_err(),
         StdError::generic_err("the contract is temporarily paused")
     );
+}
+
+#[test]
+fn proper_receive_tokenized_share() {
+    let mut deps = dependencies(&[]);
+
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    let validator2 = sample_validator(DEFAULT_VALIDATOR2);
+    let validator3 = sample_validator(DEFAULT_VALIDATOR3);
+    set_validator_mock(&mut deps.querier);
+
+    let addr1 = String::from("addr1000");
+    let module_account = String::from("module_address");
+    let tokenize_shares_amount = Uint128::from(100u64);
+
+    let owner = String::from("owner1");
+    let statom_token_contract = String::from("statom_token");
+    let reward_contract = String::from("reward");
+
+    let share_denom = String::from("share_denom");
+
+    initialize(
+        deps.borrow_mut(),
+        owner,
+        reward_contract,
+        statom_token_contract.clone(),
+    );
+
+    // register_validator
+    do_register_validator(&mut deps, validator.clone());
+    do_register_validator(&mut deps, validator2);
+    do_register_validator(&mut deps, validator3);
+
+    do_register_tokenize_share_record(
+        &mut deps,
+        new_tokenize_share(
+            1,
+            addr1.clone(),
+            module_account.clone(),
+            share_denom.clone(),
+            validator.address.clone(),
+        ),
+    );
+
+    set_custom_delegation(
+        &mut deps.querier,
+        Addr::unchecked(module_account),
+        validator,
+        100,
+        "uatom",
+    );
+
+    let receive_tokenized_share_msg = ExecuteMsg::ReceiveTokenizedShare {};
+
+    let info = mock_info(
+        &addr1,
+        &[coin(tokenize_shares_amount.u128(), share_denom.clone())],
+    );
+
+    let res = execute(deps.as_mut(), mock_env(), info, receive_tokenized_share_msg).unwrap();
+    assert_eq!(2, res.messages.len());
+
+    let redeem = &res.messages[0];
+    if redeem.msg.clone()
+        != build_redeem_tokenize_share_msg(
+            MOCK_CONTRACT_ADDR.to_string(),
+            Coin::new(100, share_denom),
+        )
+    {
+        panic!("Unexpected message: {:?}", redeem)
+    }
+
+    let mint = &res.messages[1];
+    match mint.msg.clone() {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr,
+            msg,
+            funds: _,
+        }) => {
+            assert_eq!(contract_addr, statom_token_contract);
+            assert_eq!(
+                msg,
+                to_binary(&Cw20ExecuteMsg::Mint {
+                    recipient: addr1,
+                    amount: tokenize_shares_amount,
+                })
+                .unwrap()
+            )
+        }
+        _ => panic!("Unexpected message: {:?}", mint),
+    }
 }
