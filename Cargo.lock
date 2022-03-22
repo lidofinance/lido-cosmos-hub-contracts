@@ -49,12 +49,10 @@ name = "basset"
 version = "0.1.0"
 dependencies = [
  "cosmwasm-std",
- "cosmwasm-storage",
  "cosmwasm-vm",
  "cw20",
  "schemars",
  "serde",
- "thiserror",
 ]
 
 [[package]]
