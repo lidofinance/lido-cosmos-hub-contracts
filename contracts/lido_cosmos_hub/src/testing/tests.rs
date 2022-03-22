@@ -1891,6 +1891,10 @@ fn proper_receive_tokenized_share() {
     let reward_contract = String::from("reward");
 
     let share_denom = String::from("share_denom");
+    let share_denom1 = String::from("share_denom1");
+    let share_denom_with_not_whitelisted_validator =
+        String::from("share_denom_with_not_whitelisted_validator");
+    let share_denom_invalid = String::from("some_invalid_denom");
 
     initialize(
         deps.borrow_mut(),
@@ -1901,13 +1905,62 @@ fn proper_receive_tokenized_share() {
 
     // register_validator
     do_register_validator(&mut deps, validator.clone());
-    do_register_validator(&mut deps, validator2);
+    do_register_validator(&mut deps, validator2.clone());
     do_register_validator(&mut deps, validator3);
 
+    // receive of share with not whitelisted validator
     do_register_tokenize_share_record(
         &mut deps,
         new_tokenize_share(
             1,
+            addr1.clone(),
+            module_account.clone(),
+            share_denom_with_not_whitelisted_validator.clone(),
+            String::from("not_whitelisted_validator"),
+        ),
+    );
+
+    let receive_tokenized_share_msg = ExecuteMsg::ReceiveTokenizedShare {};
+
+    let info = mock_info(
+        &addr1,
+        &[coin(
+            tokenize_shares_amount.u128(),
+            share_denom_with_not_whitelisted_validator,
+        )],
+    );
+
+    let res = execute(deps.as_mut(), mock_env(), info, receive_tokenized_share_msg);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("Validator is not whitelisted")
+    );
+
+    // receive with invalid share denom
+    let receive_tokenized_share_msg = ExecuteMsg::ReceiveTokenizedShare {};
+
+    let info = mock_info(
+        &addr1,
+        &[coin(
+            tokenize_shares_amount.u128(),
+            String::from("some_invalid_denom"),
+        )],
+    );
+
+    let res = execute(deps.as_mut(), mock_env(), info, receive_tokenized_share_msg);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err(format!(
+            "cannot find tokenize share record with denom {}",
+            share_denom_invalid
+        ))
+    );
+
+    // successful receive
+    do_register_tokenize_share_record(
+        &mut deps,
+        new_tokenize_share(
+            2,
             addr1.clone(),
             module_account.clone(),
             share_denom.clone(),
@@ -1917,9 +1970,9 @@ fn proper_receive_tokenized_share() {
 
     set_custom_delegation(
         &mut deps.querier,
-        Addr::unchecked(module_account),
+        Addr::unchecked(module_account.clone()),
         validator,
-        100,
+        tokenize_shares_amount.u128(),
         "uatom",
     );
 
@@ -1954,8 +2007,75 @@ fn proper_receive_tokenized_share() {
             assert_eq!(
                 msg,
                 to_binary(&Cw20ExecuteMsg::Mint {
-                    recipient: addr1,
+                    recipient: addr1.clone(),
                     amount: tokenize_shares_amount,
+                })
+                .unwrap()
+            )
+        }
+        _ => panic!("Unexpected message: {:?}", mint),
+    }
+
+    // successful receive with some slashing happened in delegation
+    do_register_tokenize_share_record(
+        &mut deps,
+        new_tokenize_share(
+            3,
+            addr1.clone(),
+            module_account.clone(),
+            share_denom1.clone(),
+            validator2.address.clone(),
+        ),
+    );
+
+    set_custom_delegation(
+        &mut deps.querier,
+        Addr::unchecked(module_account),
+        validator2,
+        tokenize_shares_amount.u128() / 2, // validator was slashed for 50%
+        "uatom",
+    );
+
+    let redeem_amount = 50u128;
+
+    let receive_tokenized_share_msg = ExecuteMsg::ReceiveTokenizedShare {};
+
+    let info = mock_info(&addr1, &[coin(redeem_amount, share_denom1.clone())]);
+
+    deps.querier.with_native_balances(&[(
+        addr1.clone(),
+        coin(
+            tokenize_shares_amount.u128() - redeem_amount,
+            share_denom1.clone(),
+        ),
+    )]);
+
+    let res = execute(deps.as_mut(), mock_env(), info, receive_tokenized_share_msg).unwrap();
+    assert_eq!(2, res.messages.len());
+
+    let redeem = &res.messages[0];
+    if redeem.msg.clone()
+        != build_redeem_tokenize_share_msg(
+            MOCK_CONTRACT_ADDR.to_string(),
+            Coin::new(redeem_amount, share_denom1),
+        )
+    {
+        panic!("Unexpected message: {:?}", redeem)
+    }
+
+    let mint = &res.messages[1];
+    match mint.msg.clone() {
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr,
+            msg,
+            funds: _,
+        }) => {
+            assert_eq!(contract_addr, statom_token_contract);
+            assert_eq!(
+                msg,
+                to_binary(&Cw20ExecuteMsg::Mint {
+                    recipient: addr1,
+                    amount: Uint128::from(25u128),
                 })
                 .unwrap()
             )

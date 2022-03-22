@@ -110,10 +110,9 @@ impl WasmMockQuerier {
                         .iter()
                         .find(|r| r.share_token_denom == request.denom);
                     if record.is_none() {
-                        return SystemResult::Err(SystemError::InvalidRequest {
-                            error: format!("Not found {}", request.denom),
-                            request: Binary::from(request.write_to_bytes().unwrap()),
-                        });
+                        return SystemResult::Ok(ContractResult::from(to_binary(&Binary::from(
+                            response.write_to_bytes().unwrap(),
+                        ))));
                     }
                     response.set_record(record.unwrap().clone());
 
@@ -409,6 +408,9 @@ impl WasmMockQuerier {
 
     pub fn with_native_balances(&mut self, balances: &[(String, Coin)]) {
         self.balance_querier = BalanceQuerier::new(balances);
+        for (addr, balance) in balances {
+            self.base.update_balance(addr, vec![balance.clone()]);
+        }
     }
 
     // configure the mint whitelist mock basset
