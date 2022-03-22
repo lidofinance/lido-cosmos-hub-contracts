@@ -45,7 +45,7 @@ use cosmwasm_std::testing::{mock_env, mock_info};
 use protobuf::Message;
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use cw20_base::msg::ExecuteMsg::{Burn, Mint};
+use cw20_base::msg::ExecuteMsg::Mint;
 
 use crate::tokenized::{build_redeem_tokenize_share_msg, TOKENIZE_SHARES_PATH};
 
@@ -53,7 +53,7 @@ use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::state::CONFIG;
 use lido_cosmos_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
 
-use crate::testing::mock_querier::LARGEST_VALIDATOR;
+use crate::testing::mock_querier::{LARGEST_VALIDATOR, MAX_VALIDATOR_STAKED};
 use crate::tokenize_share_record::{Coin as ProtoCoin, MsgTokenizeShares, TokenizeShareRecord};
 use crate::tokenized::execute_unbond_statom;
 use basset::hub::Cw20HookMsg::Unbond;
@@ -64,6 +64,7 @@ use basset::hub::{
 };
 use cosmwasm_std::testing::{MockApi, MockStorage};
 use std::borrow::BorrowMut;
+use std::ops::Mul;
 
 const DEFAULT_VALIDATOR: &str = "default-validator";
 const DEFAULT_VALIDATOR2: &str = "default-validator2000";
@@ -781,22 +782,24 @@ pub fn proper_receive_statom() {
     do_register_validator(&mut deps, validator.clone());
 
     // bond to the second validator
-    do_bond_statom(&mut deps, addr1.clone(), Uint128::from(10u64));
-    set_delegation(&mut deps.querier, validator, 10, "uatom");
+    do_bond_statom(&mut deps, addr1.clone(), MAX_VALIDATOR_STAKED);
+    set_delegation(
+        &mut deps.querier,
+        validator,
+        MAX_VALIDATOR_STAKED.u128(),
+        "uatom",
+    );
 
     // set bob's balance to 10 in token contract
     deps.querier.with_token_balances(&[
-        (
-            &statom_token_contract,
-            &[(&addr1, &Uint128::from(10u128))],
-        ),
+        (&statom_token_contract, &[(&addr1, &MAX_VALIDATOR_STAKED)]),
         (&String::from("token"), &[]),
     ]);
 
     // Null message
     let receive = Receive(Cw20ReceiveMsg {
         sender: addr1.clone(),
-        amount: Uint128::from(10u64),
+        amount: MAX_VALIDATOR_STAKED,
         msg: to_binary(&{}).unwrap(),
     });
 
@@ -808,13 +811,30 @@ pub fn proper_receive_statom() {
     let failed_unbond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: addr1.clone(),
-        amount: Uint128::from(10u64),
+        amount: MAX_VALIDATOR_STAKED,
         msg: to_binary(&failed_unbond).unwrap(),
     });
 
     let invalid_info = mock_info(&invalid, &[]);
     let res = execute(deps.as_mut(), mock_env(), invalid_info, receive);
     assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
+
+    // try to burn more than max_burn_rate
+    let params: Parameters =
+        from_binary(&query(deps.as_ref(), mock_env(), Params {}).unwrap()).unwrap();
+    let failed_unbond = Unbond {};
+    let receive = Receive(Cw20ReceiveMsg {
+        sender: addr1.clone(),
+        amount: MAX_VALIDATOR_STAKED.mul(params.max_burn_ratio.unwrap()) + Uint128::new(1),
+        msg: to_binary(&failed_unbond).unwrap(),
+    });
+
+    let invalid_info = mock_info(&statom_token_contract, &[]);
+    let res = execute(deps.as_mut(), mock_env(), invalid_info, receive);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("Can not burn more than 0.1 of the top validator's stake")
+    );
 
     // successful call
     let successful_unbond = Unbond {};
@@ -847,7 +867,7 @@ pub fn proper_receive_statom() {
     }
 }
 
-/// Covers if the epoch period is passed, Undelegate message is sent,
+/// Covers if the epoch period is passed, Tokenize/burn messages are sent,
 /// the state storage is updated to the new changed value,
 /// the current epoch is updated to the new values,
 /// the request is stored in unbond wait list, and unbond history map is updated
@@ -918,7 +938,7 @@ pub fn proper_unbond_statom() {
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&bob, &Uint128::from(9u128))])]);
 
-    //successful call
+    // successful call
     let successful_unbond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: bob.clone(),
@@ -926,7 +946,7 @@ pub fn proper_unbond_statom() {
         msg: to_binary(&successful_unbond).unwrap(),
     });
     let token_info = mock_info(&statom_token_contract, &[]);
-    let res = execute(deps.as_mut(), mock_env(), token_info.clone(), receive).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), token_info, receive).unwrap();
     assert_eq!(2, res.messages.len());
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&bob, &Uint128::from(4u128))])]);
@@ -949,43 +969,11 @@ pub fn proper_unbond_statom() {
         _ => panic!("Unexpected message: {:?}", msg),
     }
 
-    let mut env = mock_env();
-    // pushing time forward to check the unbond message
-    env.block.time = env.block.time.plus_seconds(31);
-
-    let successful_unbond = Unbond {};
-    let receive = Receive(Cw20ReceiveMsg {
-        sender: bob.clone(),
-        amount: Uint128::from(2u64),
-        msg: to_binary(&successful_unbond).unwrap(),
-    });
-    let res = execute(deps.as_mut(), env, token_info, receive).unwrap();
-    assert_eq!(2, res.messages.len());
-
-    let msg = &res.messages[1];
-    match msg.msg.clone() {
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr,
-            msg,
-            funds: _,
-        }) => {
-            assert_eq!(contract_addr, statom_token_contract);
-            assert_eq!(
-                msg,
-                to_binary(&Burn {
-                    amount: Uint128::from(2u64)
-                })
-                .unwrap()
-            );
-        }
-        _ => panic!("Unexpected message: {:?}", msg),
-    }
-
     // check the state
     let state = State {};
     let query_state: StateResponse =
         from_binary(&query(deps.as_ref(), mock_env(), state).unwrap()).unwrap();
-    assert_eq!(query_state.total_bond_statom_amount, Uint128::from(2u64));
+    assert_eq!(query_state.total_bond_statom_amount, Uint128::from(4u64));
 }
 
 /// Covers if the undelegate function sends different Undelegate messages

@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cosmwasm_std::{
-    attr, to_binary, Attribute, BalanceResponse, BankQuery, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, FullDelegation, MessageInfo, QueryRequest, Response, StakingQuery, StdError,
-    StdResult, Uint128, WasmMsg, WasmQuery,
-};
-
 use crate::state::{CONFIG, PARAMETERS, STATE};
+use cosmwasm_std::{
+    attr, to_binary, Addr, Attribute, BalanceResponse, BankQuery, Binary, Coin, CosmosMsg, Decimal,
+    Deps, DepsMut, Env, FullDelegation, MessageInfo, QueryRequest, Response, StakingQuery,
+    StdError, StdResult, Uint128, WasmMsg, WasmQuery,
+};
 use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
 
 use crate::contract::slashing;
@@ -35,7 +34,6 @@ use protobuf::Message;
 use std::ops::Mul;
 use std::string::String;
 
-use lido_cosmos_validators_registry::registry::ValidatorResponse;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -106,20 +104,6 @@ pub fn build_tokenize_share_msg(
         type_url: TOKENIZE_SHARES_PATH.to_string(),
         value: encoded_tokenize_msg,
     }
-}
-
-// TODO: query a validators list once and call .has() method
-fn is_known_validator(
-    deps: Deps,
-    validators_registry_contract: Addr,
-    validator: String,
-) -> StdResult<bool> {
-    let is_known_validator: bool = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: validators_registry_contract.to_string(),
-        msg: to_binary(&QueryValidators::HasValidator { address: validator })?,
-    }))?;
-
-    Ok(is_known_validator)
 }
 
 // Need to create this struct by myself, because we it's defined as importable in the lib

@@ -207,7 +207,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::HasValidator { address } => to_binary(&query_has_validator(deps, address)),
-        QueryMsg::GetLargestValidator { } => to_binary(&query_largest_validator(deps)?),
+        QueryMsg::GetLargestValidator {} => to_binary(&query_largest_validator(deps)?),
     }
 }
 
@@ -234,12 +234,10 @@ fn query_largest_validator(deps: Deps) -> StdResult<ValidatorResponse> {
     }
 
     if largest_delegation_amount.is_zero() {
-        return Err(StdError::generic_err(
-            "No delegations found",
-        ));
+        return Err(StdError::generic_err("No delegations found"));
     }
 
-    Ok(ValidatorResponse{
+    Ok(ValidatorResponse {
         address: largest_validator_address,
         total_delegated: largest_delegation_amount,
     })

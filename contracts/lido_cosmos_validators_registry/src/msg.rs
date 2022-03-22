@@ -45,7 +45,7 @@ pub enum QueryMsg {
     GetValidatorsForDelegation {},
     Config {},
     HasValidator { address: String },
-    GetLargestValidator { },
+    GetLargestValidator {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

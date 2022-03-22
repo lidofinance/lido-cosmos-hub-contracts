@@ -43,6 +43,7 @@ use serde::{Deserialize, Serialize};
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 pub const VALIDATORS_REGISTRY: &str = "validators_registry";
 pub const LARGEST_VALIDATOR: &str = "largest_validator";
+pub const MAX_VALIDATOR_STAKED: Uint128 = Uint128::new(20000);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -141,7 +142,7 @@ impl WasmMockQuerier {
                             return SystemResult::Ok(ContractResult::from(to_binary(
                                 &ValidatorResponse {
                                     address: LARGEST_VALIDATOR.to_string(),
-                                    total_delegated: Uint128::new(20000),
+                                    total_delegated: MAX_VALIDATOR_STAKED,
                                 },
                             )));
                         }
