@@ -13,9 +13,9 @@
 // limitations under the License.
 
 use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, BalanceResponse, BankQuery, Binary, Coin, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, FullDelegation, MessageInfo, QueryRequest, Response, StakingQuery,
-    StdError, StdResult, WasmMsg, WasmQuery,
+    attr, to_binary, Attribute, BalanceResponse, BankQuery, Binary, Coin, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, FullDelegation, MessageInfo, QueryRequest, Response, StakingQuery, StdError,
+    StdResult, WasmMsg, WasmQuery,
 };
 
 use crate::state::{CONFIG, STATE};
@@ -32,11 +32,14 @@ use protobuf::Message;
 use std::ops::Mul;
 use std::string::String;
 
+use lido_cosmos_validators_registry::registry::ValidatorResponse;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub const TOKENIZE_SHARE_RECORD_BY_DENOM_PATH: &str =
     "/liquidstaking.staking.v1beta1.Query/TokenizeShareRecordByDenom";
+pub const TOKENIZE_SHARE_RECORD_REDEEM_MSG_TYPE_URL: &str =
+    "/liquidstaking.staking.v1beta1.Msg/RedeemTokens";
 
 // no guarantee this actually works, no way to test it yet
 // TODO: remove unwraps
@@ -71,23 +74,9 @@ pub fn build_redeem_tokenize_share_msg(delegator: String, coin: Coin) -> CosmosM
     let encoded_redeem_msg = Binary::from(redeem_msg.write_to_bytes().unwrap());
 
     cosmwasm_std::CosmosMsg::Stargate {
-        type_url: "/liquidstaking.staking.v1beta1.Msg/RedeemTokens".to_string(),
+        type_url: TOKENIZE_SHARE_RECORD_REDEEM_MSG_TYPE_URL.to_string(),
         value: encoded_redeem_msg,
     }
-}
-
-// TODO: query a validators list once and call .has() method
-fn is_known_validator(
-    deps: Deps,
-    validators_registry_contract: Addr,
-    validator: String,
-) -> StdResult<bool> {
-    let is_known_validator: bool = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: validators_registry_contract.to_string(),
-        msg: to_binary(&QueryValidators::HasValidator { address: validator })?,
-    }))?;
-
-    Ok(is_known_validator)
 }
 
 // Need to create this struct by myself, because we it's defined as importable in the lib
@@ -112,6 +101,18 @@ pub fn receive_tokenized_share(
             "Validators registry contract address is empty",
         ));
     };
+
+    let validators_response: Vec<ValidatorResponse> =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: validators_registry_contract.to_string(),
+            msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
+        }))?;
+
+    #[allow(clippy::needless_collect)]
+    let validators_addresses: Vec<String> = validators_response
+        .iter()
+        .map(|v| v.address.clone())
+        .collect();
 
     let token_address = config
         .statom_token_contract
@@ -138,11 +139,7 @@ pub fn receive_tokenized_share(
             )));
         };
 
-        if !is_known_validator(
-            deps.as_ref(),
-            validators_registry_contract.clone(),
-            tokenize_share.validator.clone(),
-        )? {
+        if !validators_addresses.contains(&tokenize_share.validator) {
             return Err(StdError::generic_err("Validator is not whitelisted"));
         }
 
