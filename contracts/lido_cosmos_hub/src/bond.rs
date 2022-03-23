@@ -85,17 +85,9 @@ pub fn execute_bond(
 
     // exchange rate should be updated for future
     STATE.update(deps.storage, |mut prev_state| -> StdResult<_> {
-        match bond_type {
-            BondType::BondRewards => {
-                prev_state.total_bond_statom_amount += payment.amount;
-                prev_state.update_statom_exchange_rate(total_supply, requested_with_fee);
-                Ok(prev_state)
-            }
-            BondType::StAtom => {
-                prev_state.total_bond_statom_amount += payment.amount;
-                Ok(prev_state)
-            }
-        }
+        prev_state.total_bond_statom_amount += payment.amount;
+        prev_state.update_statom_exchange_rate(total_supply, requested_with_fee);
+        Ok(prev_state)
     })?;
 
     let validators_registry_contract = if let Some(v) = config.validators_registry_contract {
