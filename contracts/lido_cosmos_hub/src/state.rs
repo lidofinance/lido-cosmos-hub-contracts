@@ -170,9 +170,13 @@ pub fn calculate_new_withdraw_rate(
         if slashed_amount.0.u128() != 0u128 {
             slashed_amount_of_batch += Uint256::one();
         }
-        actual_unbonded_amount_of_batch = Uint256::from(
-            SignedInt::from_subtraction(unbonded_amount_of_batch, slashed_amount_of_batch).0,
-        );
+        actual_unbonded_amount_of_batch = if slashed_amount_of_batch >= unbonded_amount_of_batch {
+            Uint256::zero()
+        } else {
+            Uint256::from(
+                SignedInt::from_subtraction(unbonded_amount_of_batch, slashed_amount_of_batch).0,
+            )
+        };
     }
 
     // Calculate the new withdraw rate
