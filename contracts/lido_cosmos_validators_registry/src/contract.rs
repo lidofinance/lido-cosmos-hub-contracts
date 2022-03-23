@@ -43,9 +43,8 @@ pub fn instantiate(
     )?;
 
     for v in msg.registry {
-
         // FIX: update the comment below with correct prefixes after coswasm in cosmos hub will have been released
-        // deps.api.addr_validate validates only terra1 prefixed addresses, 
+        // deps.api.addr_validate validates only terra1 prefixed addresses
         // validators terravaloper1 throws an error, but we can use query_validator witch sucessefully validates valoper address
         deps.querier.query_validator(&v.address)?;
         REGISTRY.save(deps.storage, v.address.as_str().as_bytes(), &v)?;

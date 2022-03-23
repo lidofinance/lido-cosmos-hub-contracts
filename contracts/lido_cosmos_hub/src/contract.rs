@@ -455,11 +455,17 @@ fn query_withdrawable_unbonded(
     env: Env,
 ) -> StdResult<WithdrawableUnbondedResponse> {
     let params = PARAMETERS.load(deps.storage)?;
+    let coin_denom = params.underlying_coin_denom;
+    let hub_balance = deps
+        .querier
+        .query_balance(&env.contract.address, &*coin_denom)?
+        .amount;
     let historical_time = env.block.time.seconds() - params.unbonding_period;
-    let all_requests = query_get_finished_amount(deps.storage, address, historical_time)?;
+    let withdrawable_amount =
+        query_get_finished_amount(deps.storage, address, historical_time, hub_balance)?;
 
     let withdrawable = WithdrawableUnbondedResponse {
-        withdrawable: all_requests,
+        withdrawable: withdrawable_amount,
     };
     Ok(withdrawable)
 }

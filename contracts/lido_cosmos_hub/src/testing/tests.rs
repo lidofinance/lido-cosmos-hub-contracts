@@ -1734,13 +1734,12 @@ pub fn proper_withdraw_unbonded_respect_slashing_statom() {
     assert_eq!(res.requests[0].0, 1);
 
     // check with query
-    // this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
     };
     let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128::from(1000u64));
+    assert_eq!(res.withdrawable, Uint128::from(899u64));
 
     let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
@@ -1911,13 +1910,12 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_statom() {
     assert_eq!(res.requests[0].0, 1);
 
     // check with query
-    // this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
     };
     let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128::from(1000u64));
+    assert_eq!(res.withdrawable, Uint128::from(899u64));
 
     let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 

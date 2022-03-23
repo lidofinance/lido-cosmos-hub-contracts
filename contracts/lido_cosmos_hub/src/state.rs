@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cosmwasm_std::{from_slice, to_vec, Order, StdError, StdResult, Storage, Uint128};
+use cosmwasm_bignumber::{Decimal256, Uint256};
+use cosmwasm_std::{from_slice, to_vec, Decimal, Order, StdError, StdResult, Storage, Uint128};
 use cosmwasm_storage::{Bucket, PrefixedStorage, ReadonlyBucket, ReadonlyPrefixedStorage};
 
 use cw_storage_plus::{Item, Map};
@@ -20,6 +21,7 @@ use cw_storage_plus::{Item, Map};
 use basset::hub::{
     Config, CurrentBatch, Parameters, State, UnbondHistory, UnbondRequest, UnbondWaitEntity,
 };
+use signed_integer::SignedInt;
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const PARAMETERS: Item<Parameters> = Item::new("parameters");
@@ -97,6 +99,90 @@ pub fn get_unbond_requests(storage: &dyn Storage, sender_addr: String) -> StdRes
     Ok(requests)
 }
 
+pub fn calculate_newly_added_unbonded_amount(
+    storage: &dyn Storage,
+    last_processed_batch: u64,
+    historical_time: u64,
+) -> (Uint256, u64) {
+    let mut statom_total_unbonded_amount = Uint256::zero();
+    let mut batch_count: u64 = 0;
+
+    // Iterate over unbonded histories that have been processed
+    // to calculate newly added unbonded amount
+    let mut i = last_processed_batch + 1;
+    loop {
+        let history: UnbondHistory;
+        match read_unbond_history(storage, i) {
+            Ok(h) => {
+                if h.time > historical_time {
+                    break;
+                }
+                if !h.released {
+                    history = h.clone();
+                } else {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+        let statom_burnt_amount = Uint256::from(history.statom_amount);
+        let statom_historical_rate = Decimal256::from(history.statom_withdraw_rate);
+        let statom_unbonded_amount = statom_burnt_amount * statom_historical_rate;
+
+        statom_total_unbonded_amount += statom_unbonded_amount;
+        batch_count += 1;
+        i += 1;
+    }
+
+    (statom_total_unbonded_amount, batch_count)
+}
+
+pub fn calculate_new_withdraw_rate(
+    amount: Uint128,
+    withdraw_rate: Decimal,
+    total_unbonded_amount: Uint256,
+    slashed_amount: SignedInt,
+) -> Decimal {
+    let burnt_amount_of_batch = Uint256::from(amount);
+    let historical_rate_of_batch = Decimal256::from(withdraw_rate);
+    let unbonded_amount_of_batch = burnt_amount_of_batch * historical_rate_of_batch;
+
+    // the slashed amount for each batch must be proportional to the unbonded amount of batch
+    let batch_slashing_weight = if total_unbonded_amount != Uint256::zero() {
+        Decimal256::from_ratio(unbonded_amount_of_batch.0, total_unbonded_amount.0)
+    } else {
+        Decimal256::zero()
+    };
+
+    let mut slashed_amount_of_batch = batch_slashing_weight * Uint256::from(slashed_amount.0);
+
+    let actual_unbonded_amount_of_batch: Uint256;
+
+    // If slashed amount is negative, there should be summation instead of subtraction.
+    if slashed_amount.1 {
+        slashed_amount_of_batch = if slashed_amount_of_batch > Uint256::one() {
+            slashed_amount_of_batch - Uint256::one()
+        } else {
+            Uint256::zero()
+        };
+        actual_unbonded_amount_of_batch = unbonded_amount_of_batch + slashed_amount_of_batch;
+    } else {
+        if slashed_amount.0.u128() != 0u128 {
+            slashed_amount_of_batch += Uint256::one();
+        }
+        actual_unbonded_amount_of_batch = Uint256::from(
+            SignedInt::from_subtraction(unbonded_amount_of_batch, slashed_amount_of_batch).0,
+        );
+    }
+
+    // Calculate the new withdraw rate
+    if burnt_amount_of_batch != Uint256::zero() {
+        Decimal::from_ratio(actual_unbonded_amount_of_batch, burnt_amount_of_batch)
+    } else {
+        withdraw_rate
+    }
+}
+
 /// Return all requested unbond amount.
 /// This needs to be called after process withdraw rate function.
 /// If the batch is released, this will return user's requested
@@ -129,7 +215,24 @@ pub fn query_get_finished_amount(
     storage: &dyn Storage,
     sender_addr: String,
     block_time: u64,
+    hub_balance: Uint128,
 ) -> StdResult<Uint128> {
+    let state = STATE.load(storage)?;
+
+    let last_processed_batch = state.last_processed_batch;
+    let (statom_total_unbonded_amount, batch_count) =
+        calculate_newly_added_unbonded_amount(storage, last_processed_batch, block_time);
+
+    if batch_count == 0 {
+        return Ok(Uint128::zero());
+    }
+    let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
+    let actual_unbonded_amount = balance_change.0;
+    let statom_slashed_amount = SignedInt::from_subtraction(
+        statom_total_unbonded_amount,
+        Uint256::from(actual_unbonded_amount),
+    );
+
     let vec = to_vec(&sender_addr)?;
     let mut withdrawable_amount: Uint128 = Uint128::zero();
     let res: ReadonlyBucket<UnbondWaitEntity> =
@@ -140,7 +243,13 @@ pub fn query_get_finished_amount(
         let history = read_unbond_history(storage, user_batch);
         if let Ok(h) = history {
             if h.time < block_time {
-                withdrawable_amount += v.statom_amount * h.statom_withdraw_rate;
+                let new_widrawal_rate = calculate_new_withdraw_rate(
+                    h.statom_amount,
+                    h.statom_withdraw_rate,
+                    statom_total_unbonded_amount,
+                    statom_slashed_amount,
+                );
+                withdrawable_amount += v.statom_amount * new_widrawal_rate;
             }
         }
     }
