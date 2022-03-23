@@ -139,6 +139,7 @@ pub fn execute_add_guardians(
     }
 
     for guardian in &guardians {
+        deps.api.addr_validate(guardian)?;
         GUARDIANS.save(deps.storage, guardian.clone(), &true)?;
     }
 

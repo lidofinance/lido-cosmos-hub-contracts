@@ -43,6 +43,11 @@ pub fn instantiate(
     )?;
 
     for v in msg.registry {
+
+        // FIX: update the comment below with correct prefixes after coswasm in cosmos hub will have been released
+        // deps.api.addr_validate validates only terra1 prefixed addresses, 
+        // validators terravaloper1 throws an error, but we can use query_validator witch sucessefully validates valoper address
+        deps.querier.query_validator(&v.address)?;
         REGISTRY.save(deps.storage, v.address.as_str().as_bytes(), &v)?;
     }
 
@@ -110,6 +115,8 @@ pub fn add_validator(
     if !(info.sender == owner_address || info.sender == hub_address) {
         return Err(StdError::generic_err("unauthorized"));
     }
+
+    deps.querier.query_validator(&validator.address)?;
 
     REGISTRY.save(
         deps.storage,
