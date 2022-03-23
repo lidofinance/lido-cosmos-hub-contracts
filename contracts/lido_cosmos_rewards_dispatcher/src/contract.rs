@@ -31,6 +31,13 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
+    if msg.lido_fee_rate > Decimal::one() {
+        return Err(StdError::generic_err(format!(
+            "validation error: lido rate fee {} is to high, max rate is 1",
+            msg.lido_fee_rate
+        )));
+    }
+
     let conf = Config {
         owner: info.sender,
         hub_contract: deps.api.addr_validate(&msg.hub_contract)?,
@@ -109,6 +116,12 @@ pub fn execute_update_config(
     }
 
     if let Some(r) = lido_fee_rate {
+        if r > Decimal::one() {
+            return Err(StdError::generic_err(format!(
+                "validation error: lido rate fee {} is to high, max rate is 1",
+                r
+            )));
+        }
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.lido_fee_rate = r;
             Ok(last_config)

@@ -238,4 +238,19 @@ fn test_update_config() {
 
     let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(Decimal::one(), config.lido_fee_rate);
+
+    // change lido_fee_rate failed
+    let update_config_msg = ExecuteMsg::UpdateConfig {
+        owner: None,
+        hub_contract: None,
+        statom_reward_denom: None,
+        lido_fee_address: None,
+        lido_fee_rate: Some(Decimal::from_ratio(2u128, 1u128)),
+    };
+    let info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
+    assert!(res.is_err());
+
+    let config = CONFIG.load(&deps.storage).unwrap();
+    assert_eq!(Decimal::one(), config.lido_fee_rate);
 }
