@@ -138,7 +138,7 @@ pub struct Parameters {
     pub epoch_period: u64,
     pub underlying_coin_denom: String,
     pub unbonding_period: u64,
-    pub paused: Option<bool>,
+    pub paused: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -237,11 +237,21 @@ pub enum QueryMsg {
     Guardians,
 }
 
-pub fn is_paused(deps: Deps, hub_addr: String) -> StdResult<bool> {
-    let params: Parameters = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: hub_addr,
-        msg: to_binary(&QueryMsg::Parameters {})?,
-    }))?;
+pub enum PausedRequest {
+    Parameters(Parameters),
+    HubAddr(String),
+}
 
-    Ok(params.paused.unwrap_or(false))
+pub fn is_paused(deps: Deps, req: PausedRequest) -> StdResult<bool> {
+    let params: Parameters = match req {
+        PausedRequest::Parameters(p) => p,
+        PausedRequest::HubAddr(hub_addr) => {
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: hub_addr,
+                msg: to_binary(&QueryMsg::Parameters {})?,
+            }))?
+        }
+    };
+
+    Ok(params.paused)
 }

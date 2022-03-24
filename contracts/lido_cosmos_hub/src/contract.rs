@@ -31,9 +31,9 @@ use crate::unbond::{execute_unbond_statom, execute_withdraw_unbonded};
 
 use crate::bond::execute_bond;
 use basset::hub::{
-    AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
-    InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondHistoryResponse,
-    UnbondRequestsResponse, WithdrawableUnbondedResponse,
+    is_paused, AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch,
+    CurrentBatchResponse, InstantiateMsg, MigrateMsg, Parameters, PausedRequest, QueryMsg, State,
+    StateResponse, UnbondHistoryResponse, UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
@@ -72,7 +72,7 @@ pub fn instantiate(
         epoch_period: msg.epoch_period,
         underlying_coin_denom: msg.underlying_coin_denom,
         unbonding_period: msg.unbonding_period,
-        paused: Some(false),
+        paused: false,
     };
 
     PARAMETERS.save(deps.storage, &params)?;
@@ -175,7 +175,7 @@ pub fn execute_pause_contracts(deps: DepsMut, _env: Env, info: MessageInfo) -> S
     }
 
     let mut params: Parameters = PARAMETERS.load(deps.storage)?;
-    params.paused = Some(true);
+    params.paused = true;
 
     PARAMETERS.save(deps.storage, &params)?;
 
@@ -194,7 +194,7 @@ pub fn execute_unpause_contracts(
     }
 
     let mut params: Parameters = PARAMETERS.load(deps.storage)?;
-    params.paused = Some(false);
+    params.paused = false;
 
     PARAMETERS.save(deps.storage, &params)?;
 
@@ -245,7 +245,7 @@ pub fn receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
     let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
+    if is_paused(deps.as_ref(), PausedRequest::Parameters(params))? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 
@@ -280,7 +280,7 @@ pub fn execute_dispatch_rewards(
     _info: MessageInfo,
 ) -> StdResult<Response> {
     let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
+    if is_paused(deps.as_ref(), PausedRequest::Parameters(params))? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 
@@ -374,7 +374,7 @@ pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
 /// Handler for tracking slashing
 pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
     let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
+    if is_paused(deps.as_ref(), PausedRequest::Parameters(params))? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 

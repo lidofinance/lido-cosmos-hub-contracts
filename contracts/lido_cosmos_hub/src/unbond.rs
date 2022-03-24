@@ -18,7 +18,7 @@ use crate::state::{
     read_unbond_history, remove_unbond_wait_list, store_unbond_history, store_unbond_wait_list,
     CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
 };
-use basset::hub::{CurrentBatch, State, UnbondHistory};
+use basset::hub::{is_paused, CurrentBatch, PausedRequest, State, UnbondHistory};
 use cosmwasm_bignumber::Uint256;
 use cosmwasm_std::{
     attr, coin, coins, to_binary, BankMsg, CosmosMsg, DepsMut, Env, MessageInfo, Response,
@@ -35,8 +35,8 @@ pub fn execute_withdraw_unbonded(
     info: MessageInfo,
 ) -> StdResult<Response> {
     let params = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
-        return Err(StdError::generic_err("The contract is temporarily paused"));
+    if is_paused(deps.as_ref(), PausedRequest::Parameters(params.clone()))? {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
     }
     let sender_human = info.sender;
     let contract_address = env.contract.address.clone();

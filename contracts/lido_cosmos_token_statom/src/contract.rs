@@ -26,7 +26,7 @@ use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::handler::*;
 use crate::msg::TokenInitMsg;
 use crate::state::HUB_CONTRACT;
-use basset::hub::is_paused;
+use basset::hub::{is_paused, PausedRequest};
 use cw20::MinterResponse;
 use cw20_base::ContractError;
 
@@ -72,7 +72,10 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     let hub_addr: Addr = HUB_CONTRACT.load(deps.storage)?;
-    if is_paused(deps.as_ref(), hub_addr.into_string())? {
+    if is_paused(
+        deps.as_ref(),
+        PausedRequest::HubAddr(hub_addr.into_string()),
+    )? {
         return Err(ContractError::Std(StdError::generic_err(
             "The contract is temporarily paused",
         )));

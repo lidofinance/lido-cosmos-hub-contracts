@@ -15,7 +15,7 @@
 use crate::contract::slashing;
 use crate::math::decimal_division;
 use crate::state::{CONFIG, CURRENT_BATCH, PARAMETERS, STATE};
-use basset::hub::{BondType, Parameters};
+use basset::hub::{is_paused, BondType, Parameters, PausedRequest};
 use cosmwasm_std::{
     attr, to_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response,
     StakingMsg, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
@@ -32,7 +32,7 @@ pub fn execute_bond(
     bond_type: BondType,
 ) -> Result<Response, StdError> {
     let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
+    if is_paused(deps.as_ref(), PausedRequest::Parameters(params.clone()))? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 

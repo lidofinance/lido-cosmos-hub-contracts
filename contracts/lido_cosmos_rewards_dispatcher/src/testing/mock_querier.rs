@@ -75,7 +75,7 @@ impl WasmMockQuerier {
                             epoch_period: 0,
                             underlying_coin_denom: "".to_string(),
                             unbonding_period: 0,
-                            paused: None,
+                            paused: false,
                         };
                         SystemResult::Ok(ContractResult::from(to_binary(&params)))
                     } else {

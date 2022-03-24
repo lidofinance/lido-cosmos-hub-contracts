@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use basset::hub::PausedRequest;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
@@ -142,7 +143,10 @@ pub fn execute_update_config(
 
 pub fn execute_dispatch_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config: Config = CONFIG.load(deps.storage)?;
-    if is_paused(deps.as_ref(), config.hub_contract.clone().into_string())? {
+    if is_paused(
+        deps.as_ref(),
+        PausedRequest::HubAddr(config.hub_contract.clone().into_string()),
+    )? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 
