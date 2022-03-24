@@ -401,7 +401,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Parameters {} => to_binary(&query_params(deps)?),
         QueryMsg::UnbondRequests { address } => to_binary(&query_unbond_requests(deps, address)?),
         QueryMsg::AllHistory { start_from, limit } => {
-            to_binary(&query_unbond_requests_limitation(deps, start_from, limit)?)
+            to_binary(&query_history_limitation(deps, start_from, limit)?)
         }
         QueryMsg::Guardians => to_binary(&query_guardians(deps)?),
     }
@@ -493,7 +493,7 @@ fn query_unbond_requests(deps: Deps, address: String) -> StdResult<UnbondRequest
     Ok(res)
 }
 
-fn query_unbond_requests_limitation(
+fn query_history_limitation(
     deps: Deps,
     start: Option<u64>,
     limit: Option<u32>,
