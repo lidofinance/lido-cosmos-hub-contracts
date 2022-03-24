@@ -48,11 +48,7 @@ pub fn execute_burn(
 ) -> Result<Response, ContractError> {
     let hub_contract = HUB_CONTRACT.load(deps.storage)?;
 
-    let mut messages = vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: hub_contract.to_string(),
-        msg: to_binary(&CheckSlashing {})?,
-        funds: vec![],
-    }))];
+    let mut messages = vec![];
     if info.sender != hub_contract {
         messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: hub_contract.to_string(),
