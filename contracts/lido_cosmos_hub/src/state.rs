@@ -34,8 +34,6 @@ pub const GUARDIANS: Map<String, bool> = Map::new("guardians");
 pub static PREFIX_WAIT_MAP: &[u8] = b"wait";
 pub static UNBOND_HISTORY_MAP: &[u8] = b"history_map";
 
-pub const MAX_DEFAULT_RANGE_LIMIT: u32 = 1000;
-
 /// Store undelegation wait list per each batch
 /// HashMap<user's address, <batch_id, requested_amount>
 pub fn store_unbond_wait_list(
