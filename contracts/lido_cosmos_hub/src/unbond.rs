@@ -50,13 +50,11 @@ pub fn execute_withdraw_unbonded(
         .querier
         .query_balance(&env.contract.address, &*coin_denom)?
         .amount;
-
     // calculate withdraw rate for user requests
     process_withdraw_rate(&mut deps, historical_time, hub_balance)?;
 
     let (withdraw_amount, deprecated_batches) =
         get_finished_amount(deps.storage, sender_human.to_string())?;
-
     if withdraw_amount.is_zero() {
         return Err(StdError::generic_err(format!(
             "No withdrawable {} assets are available yet",
@@ -106,8 +104,13 @@ fn process_withdraw_rate(
     if batch_count < 1 {
         return Ok(());
     }
-
     let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
+    if balance_change.1 {
+        return Err(StdError::generic_err(format!(
+            "balance reduced since last change: was - {}, now - {}",
+            state.prev_hub_balance, hub_balance
+        )));
+    };
     let actual_unbonded_amount = balance_change.0;
 
     let statom_slashed_amount = SignedInt::from_subtraction(

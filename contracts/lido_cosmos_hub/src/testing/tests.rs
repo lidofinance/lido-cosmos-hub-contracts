@@ -1408,6 +1408,161 @@ pub fn proper_slashing_statom() {
     }
 }
 
+#[test]
+pub fn failed_withdraw_unbonded_statom() {
+    let mut deps = dependencies(&[]);
+
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
+    let owner = String::from("owner1");
+    let statom_token_contract = String::from("statom_token");
+    let reward_contract = String::from("reward");
+
+    initialize(
+        deps.borrow_mut(),
+        owner,
+        reward_contract,
+        statom_token_contract.clone(),
+    );
+
+    // register_validator
+    do_register_validator(&mut deps, validator.clone());
+    let mut env = mock_env();
+
+    let bob = String::from("bob");
+    let alice = String::from("alice");
+    let bond_msg = ExecuteMsg::BondForStAtom {};
+
+    let info = mock_info(&bob, &[coin(100, "uatom")]);
+    let res_bob = execute(deps.as_mut(), mock_env(), info, bond_msg.clone()).unwrap();
+    assert_eq!(2, res_bob.messages.len());
+
+    let info = mock_info(&alice, &[coin(100, "uatom")]);
+    let res_alice = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
+    assert_eq!(2, res_alice.messages.len());
+
+    deps.querier.with_token_balances(&[(
+        &statom_token_contract,
+        &[
+            (&bob, &Uint128::from(100u128)),
+            (&alice, &Uint128::from(100u128)),
+        ],
+    )]);
+    set_delegation(&mut deps.querier, validator, 200, "uatom");
+
+    // first request - current batch
+    let res = execute_unbond_statom(
+        deps.as_mut(),
+        env.clone(),
+        Uint128::from(10u64),
+        bob.clone(),
+    )
+    .unwrap();
+    // burn message
+    assert_eq!(1, res.messages.len());
+    deps.querier.with_token_balances(&[(
+        &statom_token_contract,
+        &[
+            (&bob, &Uint128::from(90u128)),
+            (&alice, &Uint128::from(100u128)),
+        ],
+    )]);
+
+    env.block.time = env.block.time.plus_seconds(31);
+
+    // second request, realesed first+send request, history id - 1
+    let res = execute_unbond_statom(
+        deps.as_mut(),
+        env.clone(),
+        Uint128::from(10u64),
+        alice.clone(),
+    )
+    .unwrap();
+    // undelegate + burn message
+    assert_eq!(2, res.messages.len());
+
+    deps.querier.with_token_balances(&[(
+        &statom_token_contract,
+        &[
+            (&bob, &Uint128::from(90u128)),
+            (&alice, &Uint128::from(90u128)),
+        ],
+    )]);
+
+    deps.querier.with_native_balances(&[(
+        String::from(MOCK_CONTRACT_ADDR),
+        Coin {
+            denom: "uatom".to_string(),
+            amount: Uint128::from(0u64),
+        },
+    )]);
+
+    env.block.time = env.block.time.plus_seconds(31);
+
+    //third unbond request, released immediatly, history id - 2
+    let res = execute_unbond_statom(
+        deps.as_mut(),
+        env.clone(),
+        Uint128::from(10u64),
+        bob.clone(),
+    )
+    .unwrap();
+    // undelegate + burn message
+    assert_eq!(2, res.messages.len());
+
+    deps.querier.with_token_balances(&[(
+        &statom_token_contract,
+        &[
+            (&bob, &Uint128::from(80u128)),
+            (&alice, &Uint128::from(90u128)),
+        ],
+    )]);
+
+    // fabricate balance of the hub contract
+    deps.querier.with_native_balances(&[(
+        String::from(MOCK_CONTRACT_ADDR),
+        Coin {
+            denom: "uatom".to_string(),
+            amount: Uint128::from(20u64),
+        },
+    )]);
+
+    //withdrawing bob's coins from history 1
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_res = execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(&bob, &[]),
+        wdraw_unbonded_msg,
+    )
+    .unwrap();
+    assert_eq!(1, wdraw_unbonded_res.messages.len());
+
+    env.block.time = env.block.time.plus_seconds(3);
+    // fabricate balance of the hub contract
+    // for some reason babalnce decreased by some value, e.g. transfer from HUB to some contract
+    deps.querier.with_native_balances(&[(
+        String::from(MOCK_CONTRACT_ADDR),
+        Coin {
+            denom: "uatom".to_string(),
+            amount: Uint128::from(5u64),
+        },
+    )]);
+    // coins from history 2 undelegated
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_res = execute(
+        deps.as_mut(),
+        env,
+        mock_info(&alice, &[]),
+        wdraw_unbonded_msg,
+    );
+    assert_eq!(
+        StdError::generic_err("balance reduced since last change: was - 10, now - 5"),
+        wdraw_unbonded_res.err().unwrap()
+    );
+}
+
 /// Covers if the withdraw_rate function is updated before and after withdraw_unbonded,
 /// the finished amount is accurate, user requests are removed from the waitlist, and
 /// the BankMsg::Send is sent.
