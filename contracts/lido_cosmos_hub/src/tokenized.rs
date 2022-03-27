@@ -44,8 +44,14 @@ pub const TOKENIZE_SHARE_RECORD_REDEEM_MSG_TYPE_URL: &str =
 
 pub const TOKENIZE_SHARES_PATH: &str = "/liquidstaking.staking.v1beta1.Msg/TokenizeShares";
 
+// Need to create this struct by myself, because it's not defined as importable in the lib
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct DelegationResponse {
+    pub delegation: Option<FullDelegation>,
+}
+
 // no guarantee this actually works, no way to test it yet
-// TODO: remove unwraps
 fn get_tokenize_share_record_by_denom(
     deps: Deps,
     denom: String,
@@ -53,19 +59,26 @@ fn get_tokenize_share_record_by_denom(
     let mut query_data = QueryTokenizeShareRecordByDenomRequest::new();
     query_data.set_denom(denom);
 
+    let encoded_query_data = match query_data.write_to_bytes() {
+        Ok(b) => b,
+        Err(e) => return Err(StdError::generic_err(e.to_string())),
+    };
+
     let response: Binary = deps.querier.query(&QueryRequest::Stargate {
         path: TOKENIZE_SHARE_RECORD_BY_DENOM_PATH.to_string(),
-        data: Binary::from(query_data.write_to_bytes().unwrap()),
+        data: Binary::from(encoded_query_data),
     })?;
 
     let decoded_response: QueryTokenizeShareRecordByDenomResponse =
-        Message::parse_from_bytes(response.as_slice()).unwrap();
+        match Message::parse_from_bytes(response.as_slice()) {
+            Ok(r) => r,
+            Err(e) => return Err(StdError::generic_err(e.to_string())),
+        };
 
     Ok(decoded_response.record.into_option())
 }
 
-// TODO: remove unwraps
-pub fn build_redeem_tokenize_share_msg(delegator: String, coin: Coin) -> CosmosMsg {
+pub fn build_redeem_tokenize_share_msg(delegator: String, coin: Coin) -> StdResult<CosmosMsg> {
     let mut proto_coin = ProtoCoin::new();
     proto_coin.set_amount(coin.amount.to_string());
     proto_coin.set_denom(coin.denom);
@@ -74,12 +87,29 @@ pub fn build_redeem_tokenize_share_msg(delegator: String, coin: Coin) -> CosmosM
     redeem_msg.set_amount(proto_coin);
     redeem_msg.set_delegator_address(delegator);
 
-    let encoded_redeem_msg = Binary::from(redeem_msg.write_to_bytes().unwrap());
+    let encoded_msg_bytes = match redeem_msg.write_to_bytes() {
+        Ok(b) => b,
+        Err(e) => return Err(StdError::generic_err(e.to_string())),
+    };
+    let encoded_redeem_msg = Binary::from(encoded_msg_bytes);
 
-    cosmwasm_std::CosmosMsg::Stargate {
+    Ok(cosmwasm_std::CosmosMsg::Stargate {
         type_url: TOKENIZE_SHARE_RECORD_REDEEM_MSG_TYPE_URL.to_string(),
         value: encoded_redeem_msg,
-    }
+    })
+}
+
+fn is_known_validator(
+    deps: Deps,
+    validators_registry_contract: Addr,
+    validator: String,
+) -> StdResult<bool> {
+    let is_known_validator: bool = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: validators_registry_contract.to_string(),
+        msg: to_binary(&QueryValidators::HasValidator { address: validator })?,
+    }))?;
+
+    Ok(is_known_validator)
 }
 
 pub fn build_tokenize_share_msg(
@@ -104,13 +134,6 @@ pub fn build_tokenize_share_msg(
         type_url: TOKENIZE_SHARES_PATH.to_string(),
         value: encoded_tokenize_msg,
     }
-}
-
-// Need to create this struct by myself, because we it's defined as importable in the lib
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct DelegationResponse {
-    pub delegation: Option<FullDelegation>,
 }
 
 fn get_largest_validator(
@@ -139,18 +162,6 @@ pub fn receive_tokenized_share(
         ));
     };
 
-    let validators_response: Vec<ValidatorResponse> =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: validators_registry_contract.to_string(),
-            msg: to_binary(&QueryValidators::GetValidatorsForDelegation {})?,
-        }))?;
-
-    #[allow(clippy::needless_collect)]
-    let validators_addresses: Vec<String> = validators_response
-        .iter()
-        .map(|v| v.address.clone())
-        .collect();
-
     let token_address = config
         .statom_token_contract
         .ok_or_else(|| StdError::generic_err("the token contract must have been registered"))?;
@@ -176,7 +187,11 @@ pub fn receive_tokenized_share(
             )));
         };
 
-        if !validators_addresses.contains(&tokenize_share.validator) {
+        if !is_known_validator(
+            deps.as_ref(),
+            validators_registry_contract.clone(),
+            tokenize_share.validator.clone(),
+        )? {
             return Err(StdError::generic_err("Validator is not whitelisted"));
         }
 
@@ -184,7 +199,7 @@ pub fn receive_tokenized_share(
         messages.push(build_redeem_tokenize_share_msg(
             env.contract.address.to_string(),
             fund.clone(),
-        ));
+        )?);
 
         // Unfortunately, the response for RedeemTokensForShares does not contain any
         // information at all, so we'll need to calculate the returned amount ourselves.

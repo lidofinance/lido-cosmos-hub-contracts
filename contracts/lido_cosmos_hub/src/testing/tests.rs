@@ -1980,6 +1980,7 @@ fn proper_receive_tokenized_share() {
             MOCK_CONTRACT_ADDR.to_string(),
             Coin::new(100, share_denom),
         )
+        .unwrap()
     {
         panic!("Unexpected message: {:?}", redeem)
     }
@@ -2047,6 +2048,7 @@ fn proper_receive_tokenized_share() {
             MOCK_CONTRACT_ADDR.to_string(),
             Coin::new(redeem_amount, share_denom1),
         )
+        .unwrap()
     {
         panic!("Unexpected message: {:?}", redeem)
     }
