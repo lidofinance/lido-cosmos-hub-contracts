@@ -159,18 +159,6 @@ pub struct UnbondHistory {
     pub released: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UnbondHistoryResponse {
-    pub batch_id: u64,
-    pub time: u64,
-
-    pub statom_amount: Uint128,
-    pub statom_applied_exchange_rate: Decimal,
-    pub statom_withdraw_rate: Decimal,
-
-    pub released: bool,
-}
-
 #[derive(JsonSchema, Serialize, Deserialize, Default)]
 pub struct UnbondWaitEntity {
     pub statom_amount: Uint128,
@@ -211,7 +199,7 @@ pub struct UnbondRequestsResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AllHistoryResponse {
-    pub history: Vec<UnbondHistoryResponse>,
+    pub history: Vec<UnbondHistory>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -32,7 +32,7 @@ use crate::bond::execute_bond;
 use basset::hub::{
     is_paused, AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch,
     CurrentBatchResponse, InstantiateMsg, MigrateMsg, Parameters, PausedRequest, QueryMsg, State,
-    StateResponse, UnbondHistoryResponse, UnbondRequestsResponse, WithdrawableUnbondedResponse,
+    StateResponse, UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
@@ -493,23 +493,7 @@ fn query_history_limitation(
     limit: Option<u32>,
 ) -> StdResult<AllHistoryResponse> {
     let requests = all_unbond_history(deps.storage, start, limit)?;
-    let requests_responses = requests
-        .iter()
-        .map(|r| UnbondHistoryResponse {
-            batch_id: r.batch_id,
-            time: r.time,
-
-            statom_amount: r.statom_amount,
-            statom_applied_exchange_rate: r.statom_applied_exchange_rate,
-            statom_withdraw_rate: r.statom_withdraw_rate,
-
-            released: r.released,
-        })
-        .collect();
-
-    let res = AllHistoryResponse {
-        history: requests_responses,
-    };
+    let res = AllHistoryResponse { history: requests };
     Ok(res)
 }
 
