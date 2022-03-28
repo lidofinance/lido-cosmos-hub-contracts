@@ -17,16 +17,17 @@ use cosmwasm_std::entry_point;
 use std::string::FromUtf8Error;
 
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128,
-    WasmMsg, WasmQuery,
+    attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
+    DistributionMsg, Env, MessageInfo, Order, QueryRequest, Reply, Response, StakingMsg, StdError,
+    StdResult, Uint128, WasmMsg, WasmQuery,
 };
 
 use crate::config::{execute_update_config, execute_update_params};
-use crate::state::{CONFIG, GUARDIANS, PARAMETERS, STATE};
+use crate::state::{CONFIG, GUARDIANS, PARAMETERS, STATE, TOKENIZED_SHARE_RECIPIENT};
 
 use crate::bond::execute_bond;
-use crate::tokenized::{execute_unbond_statom, receive_tokenized_share};
+use crate::tokenize_share_record::MsgTokenizeSharesResponse;
+use crate::tokenized::{execute_unbond_statom, receive_tokenized_share, TOKENIZE_SHARES_REPLY_ID};
 use basset::hub::{
     BondType, Config, ConfigResponse, InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State,
     StateResponse,
@@ -34,6 +35,7 @@ use basset::hub::{
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
 use lido_cosmos_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
+use std::str::FromStr;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -438,4 +440,37 @@ pub(crate) fn query_total_statom_issued(deps: Deps) -> StdResult<Uint128> {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::new())
+}
+
+/// # Description
+/// The entry point to the contract for processing the reply from the submessage
+/// # Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **msg** is the object of type [`Reply`].
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> StdResult<Response> {
+    if msg.id == TOKENIZE_SHARES_REPLY_ID {
+        let recipient = TOKENIZED_SHARE_RECIPIENT.load(deps.storage)?;
+
+        let result = msg.result.unwrap();
+
+        let tokenize_shares_response: MsgTokenizeSharesResponse =
+            protobuf::Message::parse_from_bytes(result.data.unwrap().as_slice()).unwrap();
+        let response_coin = tokenize_shares_response.amount.unwrap();
+        let amount = match u128::from_str(response_coin.amount.as_str()) {
+            Ok(a) => a,
+            Err(_) => return Err(StdError::generic_err("failed to parse response amount")),
+        };
+
+        return Ok(Response::new().add_message(BankMsg::Send {
+            to_address: recipient,
+            amount: [Coin::new(amount, response_coin.denom)].to_vec(),
+        }));
+    }
+
+    let res = Response::new();
+    Ok(res)
 }

@@ -15,9 +15,7 @@ pub type UnbondRequest = Vec<(u64, Uint128)>;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub epoch_period: u64,
     pub underlying_coin_denom: String,
-    pub unbonding_period: u64,
     pub max_burn_rate: Decimal,
 }
 
@@ -140,41 +138,6 @@ pub struct Parameters {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct CurrentBatch {
-    pub id: u64,
-    pub requested_statom: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UnbondHistory {
-    pub batch_id: u64,
-    pub time: u64,
-
-    pub statom_amount: Uint128,
-    pub statom_applied_exchange_rate: Decimal,
-    pub statom_withdraw_rate: Decimal,
-
-    pub released: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UnbondHistoryResponse {
-    pub batch_id: u64,
-    pub time: u64,
-
-    pub statom_amount: Uint128,
-    pub statom_applied_exchange_rate: Decimal,
-    pub statom_withdraw_rate: Decimal,
-
-    pub released: bool,
-}
-
-#[derive(JsonSchema, Serialize, Deserialize, Default)]
-pub struct UnbondWaitEntity {
-    pub statom_amount: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateResponse {
     pub statom_exchange_rate: Decimal,
     pub total_bond_statom_amount: Uint128,
@@ -189,27 +152,6 @@ pub struct ConfigResponse {
     pub reward_dispatcher_contract: Option<String>,
     pub validators_registry_contract: Option<String>,
     pub statom_token_contract: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct CurrentBatchResponse {
-    pub id: u64,
-    pub requested_statom: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct WithdrawableUnbondedResponse {
-    pub withdrawable: Uint128,
-}
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UnbondRequestsResponse {
-    pub address: String,
-    pub requests: UnbondRequest,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AllHistoryResponse {
-    pub history: Vec<UnbondHistoryResponse>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

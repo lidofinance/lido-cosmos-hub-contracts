@@ -22,3 +22,7 @@ pub const STATE: Item<State> = Item::new("state");
 
 // Contains whitelisted address which are allowed to pause (but not unpause) the contracts
 pub const GUARDIANS: Map<String, bool> = Map::new("guardians");
+
+/// ## Description
+/// Stores addr of recipient who should get converted tokens and address of converted tokens contract
+pub const TOKENIZED_SHARE_RECIPIENT: Item<String> = Item::new("tokenized_share_recipient");

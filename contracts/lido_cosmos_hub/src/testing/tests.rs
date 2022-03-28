@@ -31,30 +31,35 @@
 //!      });
 //! 4. Anywhere you see query(deps.as_ref(), ...) you must replace it with query(deps.as_mut(), ...)
 use cosmwasm_std::{
-    coin, coins, from_binary, to_binary, Addr, Api, Binary, Coin, CosmosMsg, Decimal, DepsMut,
-    DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps, Querier, QueryRequest, Response,
-    StakingMsg, StdError, Storage, Uint128, Validator, WasmMsg, WasmQuery,
+    coin, coins, from_binary, to_binary, Addr, Api, BankMsg, Binary, Coin, ContractResult,
+    CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps,
+    Querier, QueryRequest, Reply, Response, StakingMsg, StdError, Storage, SubMsgExecutionResponse,
+    Uint128, Validator, WasmMsg, WasmQuery,
 };
 use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
 use lido_cosmos_validators_registry::registry::ValidatorResponse as RegistryValidator;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::contract::{execute, instantiate, query};
+use crate::contract::{execute, instantiate, query, reply};
 use cosmwasm_std::testing::{mock_env, mock_info};
 use protobuf::Message;
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw20_base::msg::ExecuteMsg::Mint;
 
-use crate::tokenized::{build_redeem_tokenize_share_msg, TOKENIZE_SHARES_PATH};
+use crate::tokenized::{
+    build_redeem_tokenize_share_msg, TOKENIZE_SHARES_PATH, TOKENIZE_SHARES_REPLY_ID,
+};
 
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
-use crate::state::CONFIG;
+use crate::state::{CONFIG, TOKENIZED_SHARE_RECIPIENT};
 use lido_cosmos_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
 
 use crate::testing::mock_querier::{LARGEST_VALIDATOR, MAX_VALIDATOR_STAKED};
-use crate::tokenize_share_record::{Coin as ProtoCoin, MsgTokenizeShares, TokenizeShareRecord};
+use crate::tokenize_share_record::{
+    Coin as ProtoCoin, MsgTokenizeShares, MsgTokenizeSharesResponse, TokenizeShareRecord,
+};
 use crate::tokenized::execute_unbond_statom;
 use basset::hub::Cw20HookMsg::Unbond;
 use basset::hub::ExecuteMsg::{CheckSlashing, Receive, UpdateConfig, UpdateParams};
@@ -102,9 +107,7 @@ pub fn initialize<S: Storage, A: Api, Q: Querier>(
     statom_token_contract: String,
 ) {
     let msg = InstantiateMsg {
-        epoch_period: 30,
         underlying_coin_denom: "uatom".to_string(),
-        unbonding_period: 2,
         max_burn_rate: Decimal::from_ratio(Uint128::new(10), Uint128::new(100)),
     };
 
@@ -205,9 +208,7 @@ fn proper_initialization() {
 
     // successful call
     let msg = InstantiateMsg {
-        epoch_period: 30,
         underlying_coin_denom: "uatom".to_string(),
-        unbonding_period: 210,
         max_burn_rate: Decimal::from_ratio(Uint128::new(10), Uint128::new(100)),
     };
 
@@ -867,6 +868,63 @@ pub fn proper_receive_statom() {
     }
 }
 
+#[test]
+pub fn proper_reply() {
+    let bob = "bob";
+    let expected_denom = "valoperxXx12345";
+    let expected_amount = Uint128::new(10);
+
+    let mut deps = dependencies(&[]);
+    set_validator_mock(&mut deps.querier);
+
+    let owner = String::from("owner1");
+    let statom_token_contract = String::from("statom_token");
+    let reward_contract = String::from("reward");
+
+    initialize(
+        deps.borrow_mut(),
+        owner,
+        reward_contract,
+        statom_token_contract.clone(),
+    );
+
+    TOKENIZED_SHARE_RECIPIENT
+        .save(deps.storage.borrow_mut(), &"bob".to_string())
+        .unwrap();
+
+    let mut response_msg = MsgTokenizeSharesResponse::new();
+
+    let mut proto_coin = ProtoCoin::new();
+    proto_coin.set_amount(expected_amount.to_string());
+    proto_coin.set_denom(expected_denom.to_string());
+    response_msg.set_amount(proto_coin);
+
+    let encoded_response_msg = Binary::from(response_msg.write_to_bytes().unwrap());
+
+    let res = reply(
+        deps.as_mut(),
+        mock_env(),
+        Reply {
+            id: TOKENIZE_SHARES_REPLY_ID,
+            result: ContractResult::Ok(SubMsgExecutionResponse {
+                events: vec![],
+                data: Some(encoded_response_msg),
+            }),
+        },
+    )
+    .unwrap();
+    assert_eq!(1, res.messages.len());
+    let msg = &res.messages[0];
+    match msg.msg.clone() {
+        CosmosMsg::Bank(BankMsg::Send { to_address, amount }) => {
+            assert_eq!(bob, to_address);
+            assert_eq!(expected_amount, amount[0].amount);
+            assert_eq!(expected_denom, amount[0].denom);
+        }
+        _ => panic!("Unexpected message: {:?}", msg),
+    }
+}
+
 /// Covers if the epoch period is passed, Tokenize/burn messages are sent,
 /// the state storage is updated to the new changed value,
 /// the current epoch is updated to the new values,
@@ -937,6 +995,9 @@ pub fn proper_unbond_statom() {
     assert_eq!(2, res.messages.len());
     deps.querier
         .with_token_balances(&[(&statom_token_contract, &[(&bob, &Uint128::from(9u128))])]);
+
+    let recipient = TOKENIZED_SHARE_RECIPIENT.load(&deps.storage).unwrap();
+    assert_eq!(recipient, bob);
 
     // successful call
     let successful_unbond = Unbond {};

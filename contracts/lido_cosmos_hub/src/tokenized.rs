@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::state::{CONFIG, PARAMETERS, STATE};
+use crate::state::{CONFIG, PARAMETERS, STATE, TOKENIZED_SHARE_RECIPIENT};
 use cosmwasm_std::{
     attr, to_binary, Addr, Attribute, BalanceResponse, BankQuery, Binary, Coin, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, FullDelegation, MessageInfo, QueryRequest, Response, StakingQuery,
-    StdError, StdResult, Uint128, WasmMsg, WasmQuery,
+    Deps, DepsMut, Env, FullDelegation, MessageInfo, QueryRequest, ReplyOn, Response, StakingQuery,
+    StdError, StdResult, SubMsg, Uint128, WasmMsg, WasmQuery,
 };
 use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
 
@@ -36,6 +36,8 @@ use std::string::String;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+pub const TOKENIZE_SHARES_REPLY_ID: u64 = 1;
 
 pub const TOKENIZE_SHARE_RECORD_BY_DENOM_PATH: &str =
     "/liquidstaking.staking.v1beta1.Query/TokenizeShareRecordByDenom";
@@ -324,18 +326,24 @@ pub(crate) fn execute_unbond_statom(
         )));
     }
 
-    messages.push(build_tokenize_share_msg(
+    let tokenize_msg = build_tokenize_share_msg(
         env.contract.address.to_string(),
         validator.address,
         sender.clone(),
         Coin::new(undelegation_amount.u128(), params.underlying_coin_denom),
-    ));
+    );
+    let sub_msg = SubMsg {
+        id: TOKENIZE_SHARES_REPLY_ID,
+        msg: tokenize_msg,
+        gas_limit: None,
+        reply_on: ReplyOn::Success,
+    };
+    TOKENIZED_SHARE_RECIPIENT.save(deps.storage, &sender)?;
 
     // Store state's new exchange rate
     STATE.save(deps.storage, &state)?;
 
     // Send Burn message to token contract
-    let config = CONFIG.load(deps.storage)?;
     let token_address = config
         .statom_token_contract
         .ok_or_else(|| StdError::generic_err("the token contract must have been registered"))?;
@@ -347,11 +355,14 @@ pub(crate) fn execute_unbond_statom(
         funds: vec![],
     }));
 
-    let res = Response::new().add_messages(messages).add_attributes(vec![
-        attr("action", "burn"),
-        attr("from", sender),
-        attr("burnt_amount", amount),
-        attr("unbonded_amount", amount),
-    ]);
+    let res = Response::new()
+        .add_submessage(sub_msg)
+        .add_messages(messages)
+        .add_attributes(vec![
+            attr("action", "burn"),
+            attr("from", sender),
+            attr("burnt_amount", amount),
+            attr("undelegation_amount", undelegation_amount),
+        ]);
     Ok(res)
 }
