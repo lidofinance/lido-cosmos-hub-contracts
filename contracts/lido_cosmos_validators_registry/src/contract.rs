@@ -180,13 +180,13 @@ pub fn remove_validator(
                 ));
             }
 
-            let regelegate_msg = RedelegateProxy {
+            let redelegate_msg = RedelegateProxy {
                 src_validator: validator_address,
                 redelegations,
             };
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: hub_address.clone().into_string(),
-                msg: to_binary(&regelegate_msg)?,
+                msg: to_binary(&redelegate_msg)?,
                 funds: vec![],
             }));
 
