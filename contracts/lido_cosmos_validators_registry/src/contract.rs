@@ -159,6 +159,7 @@ pub fn remove_validator(
 
         let mut redelegations: Vec<(String, Coin)> = vec![];
         if let Some(delegation) = delegated_amount {
+            // TODO: check this code on the cosmos hub network when cosmwasm will have been integrated in the network
             // Terra core returns zero if there is another active redelegation
             // That means we cannot start a new redelegation, so we only remove a validator from
             // the registry.
