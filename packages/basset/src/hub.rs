@@ -234,7 +234,10 @@ pub enum QueryMsg {
         start_from: Option<u64>,
         limit: Option<u32>,
     },
-    Guardians,
+    Guardians {
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
 }
 
 pub enum PausedRequest {

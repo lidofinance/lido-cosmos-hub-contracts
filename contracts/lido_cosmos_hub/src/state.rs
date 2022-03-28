@@ -16,7 +16,7 @@ use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{from_slice, to_vec, Decimal, Order, StdError, StdResult, Storage, Uint128};
 use cosmwasm_storage::{Bucket, PrefixedStorage, ReadonlyBucket, ReadonlyPrefixedStorage};
 
-use cw_storage_plus::{Item, Map};
+use cw_storage_plus::{Bound, Item, Map};
 
 use basset::hub::{
     Config, CurrentBatch, Parameters, State, UnbondHistory, UnbondRequest, UnbondWaitEntity,
@@ -315,4 +315,21 @@ fn convert(start_after: Option<u64>) -> Option<Vec<u8>> {
         v.push(1);
         v
     })
+}
+
+pub fn query_all_guardians(
+    storage: &dyn Storage,
+    start_after: Option<String>,
+    limit: Option<u32>,
+) -> StdResult<Vec<String>> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let start = start_after.map(Bound::exclusive);
+
+    let guardians: Result<Vec<_>, _> = GUARDIANS
+        .keys(storage, start, None, Order::Ascending)
+        .map(String::from_utf8)
+        .take(limit)
+        .collect();
+
+    Ok(guardians?)
 }

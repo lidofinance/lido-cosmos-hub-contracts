@@ -14,18 +14,17 @@
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use std::string::FromUtf8Error;
 
 use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128,
-    WasmMsg, WasmQuery,
+    Env, MessageInfo, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128, WasmMsg,
+    WasmQuery,
 };
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::state::{
-    all_unbond_history, get_unbond_requests, query_get_finished_amount, CONFIG, CURRENT_BATCH,
-    GUARDIANS, PARAMETERS, STATE,
+    all_unbond_history, get_unbond_requests, query_all_guardians, query_get_finished_amount,
+    CONFIG, CURRENT_BATCH, GUARDIANS, PARAMETERS, STATE,
 };
 use crate::unbond::{execute_unbond_statom, execute_withdraw_unbonded};
 
@@ -403,15 +402,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::AllHistory { start_from, limit } => {
             to_binary(&query_history_limitation(deps, start_from, limit)?)
         }
-        QueryMsg::Guardians => to_binary(&query_guardians(deps)?),
+        QueryMsg::Guardians { start_after, limit } => {
+            to_binary(&query_all_guardians(deps.storage, start_after, limit)?)
+        }
     }
-}
-
-fn query_guardians(deps: Deps) -> StdResult<Vec<String>> {
-    let guardians = GUARDIANS.keys(deps.storage, None, None, Order::Ascending);
-    let guardians_decoded: Result<Vec<String>, FromUtf8Error> =
-        guardians.map(String::from_utf8).collect();
-    Ok(guardians_decoded?)
 }
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {

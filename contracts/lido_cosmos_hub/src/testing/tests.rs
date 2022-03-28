@@ -2685,11 +2685,32 @@ pub fn test_guardians() {
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
     execute(deps.as_mut(), mock_env(), creator_info, add_guardians).unwrap();
 
-    let query_guardians = QueryMsg::Guardians {};
+    let query_guardians = QueryMsg::Guardians {
+        start_after: None,
+        limit: None,
+    };
     let guardians: Vec<String> =
         from_binary(&query(deps.as_ref(), mock_env(), query_guardians).unwrap()).unwrap();
     assert_eq!(guardians.len(), 2);
     assert_eq!(guardians, vec![guardian1.clone(), guardian2.clone()]);
+
+    let query_guardians = QueryMsg::Guardians {
+        start_after: None,
+        limit: Some(1),
+    };
+    let guardians: Vec<String> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_guardians).unwrap()).unwrap();
+    assert_eq!(guardians.len(), 1);
+    assert_eq!(guardians, vec![guardian1.clone()]);
+
+    let query_guardians = QueryMsg::Guardians {
+        start_after: Some(guardian1.clone()),
+        limit: None,
+    };
+    let guardians: Vec<String> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_guardians).unwrap()).unwrap();
+    assert_eq!(guardians.len(), 1);
+    assert_eq!(guardians, vec![guardian2.clone()]);
 
     // set paused = true
     let pause_contracts = ExecuteMsg::PauseContracts {};
@@ -2737,7 +2758,10 @@ pub fn test_guardians() {
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
     execute(deps.as_mut(), mock_env(), creator_info, remove_guardian).unwrap();
 
-    let query_guardians = QueryMsg::Guardians {};
+    let query_guardians = QueryMsg::Guardians {
+        start_after: None,
+        limit: None,
+    };
     let guardians: Vec<String> =
         from_binary(&query(deps.as_ref(), mock_env(), query_guardians).unwrap()).unwrap();
     assert_eq!(guardians.len(), 1);
