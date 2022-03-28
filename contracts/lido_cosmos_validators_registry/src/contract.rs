@@ -110,8 +110,7 @@ pub fn add_validator(
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let owner_address = config.owner;
-    let hub_address = config.hub_contract;
-    if !(info.sender == owner_address || info.sender == hub_address) {
+    if info.sender != owner_address {
         return Err(StdError::generic_err("unauthorized"));
     }
 
