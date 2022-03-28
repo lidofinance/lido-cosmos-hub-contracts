@@ -3,7 +3,7 @@
 TOOLCHAIN := "1.58.1"
 
 schema:
-	@find contracts/* -maxdepth 0 -type d \( ! -name . \) -exec bash -c "cd '{}' && cargo +${TOOLCHAIN} schema" \;
+	@find contracts/* -maxdepth 0 -type d \( ! -name . \) -exec bash -c "cd '{}' && cargo  schema" \;
 
 test:
 	@cargo +${TOOLCHAIN} test

@@ -4,6 +4,7 @@
   "type": "object",
   "required": [
     "epoch_period",
+    "paused",
     "unbonding_period",
     "underlying_coin_denom"
   ],
@@ -14,10 +15,7 @@
       "minimum": 0.0
     },
     "paused": {
-      "type": [
-        "boolean",
-        "null"
-      ]
+      "type": "boolean"
     },
     "unbonding_period": {
       "type": "integer",
