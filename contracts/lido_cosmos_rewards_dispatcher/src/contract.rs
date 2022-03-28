@@ -59,7 +59,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::UpdateConfig {
             owner,
             hub_contract,
-            statom_reward_denom,
             lido_fee_address,
             lido_fee_rate,
         } => execute_update_config(
@@ -68,7 +67,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             info,
             owner,
             hub_contract,
-            statom_reward_denom,
             lido_fee_address,
             lido_fee_rate,
         ),
@@ -82,7 +80,6 @@ pub fn execute_update_config(
     info: MessageInfo,
     owner: Option<String>,
     hub_contract: Option<String>,
-    statom_reward_denom: Option<String>,
     lido_fee_address: Option<String>,
     lido_fee_rate: Option<Decimal>,
 ) -> StdResult<Response> {
@@ -108,12 +105,6 @@ pub fn execute_update_config(
             last_config.hub_contract = hub_raw;
             Ok(last_config)
         })?;
-    }
-
-    if let Some(_s) = statom_reward_denom {
-        return Err(StdError::generic_err(
-            "updating statom reward denom is forbidden",
-        ));
     }
 
     if let Some(r) = lido_fee_rate {
