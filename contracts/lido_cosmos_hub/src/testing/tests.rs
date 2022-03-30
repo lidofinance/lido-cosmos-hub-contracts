@@ -826,7 +826,7 @@ pub fn proper_receive_statom() {
     let failed_unbond = Unbond {};
     let receive = Receive(Cw20ReceiveMsg {
         sender: addr1.clone(),
-        amount: MAX_VALIDATOR_STAKED.mul(params.max_burn_ratio.unwrap()) + Uint128::new(1),
+        amount: MAX_VALIDATOR_STAKED.mul(params.max_burn_ratio) + Uint128::new(1),
         msg: to_binary(&failed_unbond).unwrap(),
     });
 
@@ -1453,7 +1453,7 @@ pub fn test_update_params() {
         from_binary(&query(deps.as_ref(), mock_env(), Params {}).unwrap()).unwrap();
     assert_eq!(
         params.max_burn_ratio,
-        Some(Decimal::from_ratio(Uint128::new(20), Uint128::new(100)))
+        Decimal::from_ratio(Uint128::new(20), Uint128::new(100))
     );
 }
 

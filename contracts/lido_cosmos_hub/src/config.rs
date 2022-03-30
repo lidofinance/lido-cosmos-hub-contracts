@@ -40,7 +40,7 @@ pub fn execute_update_params(
     let new_params = Parameters {
         underlying_coin_denom: params.underlying_coin_denom,
         paused: params.paused,
-        max_burn_ratio: Some(max_burn_ratio),
+        max_burn_ratio,
     };
 
     PARAMETERS.save(deps.storage, &new_params)?;

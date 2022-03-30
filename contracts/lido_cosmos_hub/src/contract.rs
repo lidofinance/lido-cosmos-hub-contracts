@@ -69,7 +69,7 @@ pub fn instantiate(
     let params = Parameters {
         underlying_coin_denom: msg.underlying_coin_denom,
         paused: Some(false),
-        max_burn_ratio: Some(msg.max_burn_rate),
+        max_burn_ratio: msg.max_burn_rate,
     };
 
     PARAMETERS.save(deps.storage, &params)?;

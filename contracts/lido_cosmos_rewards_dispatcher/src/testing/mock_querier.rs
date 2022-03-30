@@ -74,10 +74,10 @@ impl WasmMockQuerier {
                         let params = Parameters {
                             underlying_coin_denom: "".to_string(),
                             paused: None,
-                            max_burn_ratio: Some(Decimal::from_ratio(
+                            max_burn_ratio: Decimal::from_ratio(
                                 Uint128::new(10),
                                 Uint128::new(100),
-                            )),
+                            ),
                         };
                         SystemResult::Ok(ContractResult::from(to_binary(&params)))
                     } else {

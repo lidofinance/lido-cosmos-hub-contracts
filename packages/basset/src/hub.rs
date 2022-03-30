@@ -134,7 +134,7 @@ pub enum Cw20HookMsg {
 pub struct Parameters {
     pub underlying_coin_denom: String,
     pub paused: Option<bool>,
-    pub max_burn_ratio: Option<Decimal>,
+    pub max_burn_ratio: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

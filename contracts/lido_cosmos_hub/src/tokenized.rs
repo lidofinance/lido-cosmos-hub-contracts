@@ -317,17 +317,11 @@ pub(crate) fn execute_unbond_statom(
 
     let validator = get_largest_validator(deps.as_ref(), validators_registry_contract)?;
 
-    let max_burn_ratio = if let Some(mbr) = params.max_burn_ratio {
-        mbr
-    } else {
-        return Err(StdError::generic_err("Max burn ratio parameter is empty"));
-    };
-
-    let max_amount_to_burn = validator.total_delegated.mul(max_burn_ratio);
+    let max_amount_to_burn = validator.total_delegated.mul(params.max_burn_ratio);
     if amount > max_amount_to_burn {
         return Err(StdError::generic_err(format!(
             "Can not burn more than {} of the top validator's stake, which is currently {} {}",
-            max_burn_ratio, max_amount_to_burn, params.underlying_coin_denom
+            params.max_burn_ratio, max_amount_to_burn, params.underlying_coin_denom
         )));
     }
 
