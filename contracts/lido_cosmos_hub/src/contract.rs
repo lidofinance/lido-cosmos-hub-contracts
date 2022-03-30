@@ -244,7 +244,7 @@ pub fn receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
     let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if is_paused(deps.as_ref(), PausedRequest::Parameters(params))? {
+    if is_paused(deps.as_ref(), PausedRequest::FromHubParameters(params))? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 
@@ -279,7 +279,7 @@ pub fn execute_dispatch_rewards(
     _info: MessageInfo,
 ) -> StdResult<Response> {
     let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if is_paused(deps.as_ref(), PausedRequest::Parameters(params))? {
+    if is_paused(deps.as_ref(), PausedRequest::FromHubParameters(params))? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 
@@ -373,7 +373,7 @@ pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
 /// Handler for tracking slashing
 pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
     let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if is_paused(deps.as_ref(), PausedRequest::Parameters(params))? {
+    if is_paused(deps.as_ref(), PausedRequest::FromHubParameters(params))? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 

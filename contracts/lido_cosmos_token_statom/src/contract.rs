@@ -72,10 +72,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     let hub_addr: Addr = HUB_CONTRACT.load(deps.storage)?;
-    if is_paused(
-        deps.as_ref(),
-        PausedRequest::HubAddr(hub_addr.into_string()),
-    )? {
+    if is_paused(deps.as_ref(), PausedRequest::FromHubQuery(hub_addr))? {
         return Err(ContractError::Std(StdError::generic_err(
             "The contract is temporarily paused",
         )));

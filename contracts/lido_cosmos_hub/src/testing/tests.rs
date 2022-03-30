@@ -1500,7 +1500,7 @@ pub fn failed_withdraw_unbonded_statom() {
 
     env.block.time = env.block.time.plus_seconds(31);
 
-    //third unbond request, released immediatly, history id - 2
+    //third unbond request, released immediately, history id - 2
     let res = execute_unbond_statom(
         deps.as_mut(),
         env.clone(),
@@ -1541,7 +1541,7 @@ pub fn failed_withdraw_unbonded_statom() {
 
     env.block.time = env.block.time.plus_seconds(3);
     // fabricate balance of the hub contract
-    // for some reason babalnce decreased by some value, e.g. transfer from HUB to some contract
+    // for some reason balance decreased by some value, e.g. transfer from HUB to some contract
     deps.querier.with_native_balances(&[(
         String::from(MOCK_CONTRACT_ADDR),
         Coin {

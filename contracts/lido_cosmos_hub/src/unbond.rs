@@ -35,7 +35,10 @@ pub fn execute_withdraw_unbonded(
     info: MessageInfo,
 ) -> StdResult<Response> {
     let params = PARAMETERS.load(deps.storage)?;
-    if is_paused(deps.as_ref(), PausedRequest::Parameters(params.clone()))? {
+    if is_paused(
+        deps.as_ref(),
+        PausedRequest::FromHubParameters(params.clone()),
+    )? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
     let sender_human = info.sender;

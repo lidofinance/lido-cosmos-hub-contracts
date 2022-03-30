@@ -110,7 +110,7 @@ pub fn execute_update_config(
     if let Some(r) = lido_fee_rate {
         if r > Decimal::one() {
             return Err(StdError::generic_err(format!(
-                "validation error: lido rate fee {} is to high, max rate is 1",
+                "validation error: lido rate fee {} is too high, max rate is 1",
                 r
             )));
         }
@@ -136,7 +136,7 @@ pub fn execute_dispatch_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> S
     let config: Config = CONFIG.load(deps.storage)?;
     if is_paused(
         deps.as_ref(),
-        PausedRequest::HubAddr(config.hub_contract.clone().into_string()),
+        PausedRequest::FromHubQuery(config.hub_contract.clone()),
     )? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }

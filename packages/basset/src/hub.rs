@@ -229,16 +229,16 @@ pub enum QueryMsg {
 }
 
 pub enum PausedRequest {
-    Parameters(Parameters),
-    HubAddr(String),
+    FromHubParameters(Parameters),
+    FromHubQuery(Addr),
 }
 
 pub fn is_paused(deps: Deps, req: PausedRequest) -> StdResult<bool> {
     let params: Parameters = match req {
-        PausedRequest::Parameters(p) => p,
-        PausedRequest::HubAddr(hub_addr) => {
+        PausedRequest::FromHubParameters(p) => p,
+        PausedRequest::FromHubQuery(hub_addr) => {
             deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: hub_addr,
+                contract_addr: hub_addr.to_string(),
                 msg: to_binary(&QueryMsg::Parameters {})?,
             }))?
         }
