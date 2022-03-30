@@ -17,9 +17,9 @@ use cosmwasm_std::entry_point;
 use std::string::FromUtf8Error;
 
 use cosmwasm_std::{
-    attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
-    DistributionMsg, Env, MessageInfo, Order, QueryRequest, Reply, Response, StakingMsg, StdError,
-    StdResult, Uint128, WasmMsg, WasmQuery,
+    attr, from_binary, to_binary, BankMsg, Binary, Coin, ContractResult, CosmosMsg, Decimal, Deps,
+    DepsMut, DistributionMsg, Env, MessageInfo, Order, QueryRequest, Reply, Response, StakingMsg,
+    StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 
 use crate::config::{execute_update_config, execute_update_params};
@@ -455,20 +455,48 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> StdResult<Response> {
     if msg.id == TOKENIZE_SHARES_REPLY_ID {
         let recipient = TOKENIZED_SHARE_RECIPIENT.load(deps.storage)?;
 
-        let result = msg.result.unwrap();
+        return match msg.result {
+            ContractResult::Ok(result) => {
+                let result_data = match result.data {
+                    None => {
+                        return Err(StdError::generic_err(
+                            "no result data in tokenize share response",
+                        ))
+                    }
+                    Some(data) => data,
+                };
+                let tokenize_shares_response: MsgTokenizeSharesResponse =
+                    match protobuf::Message::parse_from_bytes(result_data.as_slice()) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            return Err(StdError::generic_err(format!(
+                                "failed to parse tokenize response from bytes: {}",
+                                e
+                            )))
+                        }
+                    };
 
-        let tokenize_shares_response: MsgTokenizeSharesResponse =
-            protobuf::Message::parse_from_bytes(result.data.unwrap().as_slice()).unwrap();
-        let response_coin = tokenize_shares_response.amount.unwrap();
-        let amount = match u128::from_str(response_coin.amount.as_str()) {
-            Ok(a) => a,
-            Err(_) => return Err(StdError::generic_err("failed to parse response amount")),
+                if tokenize_shares_response.amount.is_none() {
+                    return Err(StdError::generic_err("empty coin in tokenize response"));
+                }
+
+                let response_coin = tokenize_shares_response.amount.unwrap();
+
+                let amount = match u128::from_str(response_coin.amount.as_str()) {
+                    Ok(a) => a,
+                    Err(_) => return Err(StdError::generic_err("failed to parse response amount")),
+                };
+
+                Ok(Response::new().add_message(BankMsg::Send {
+                    to_address: recipient,
+                    amount: [Coin::new(amount, response_coin.denom)].to_vec(),
+                }))
+            }
+            ContractResult::Err(err) => Err(StdError::generic_err(format!(
+                "tokenize shares failed for {}: {}",
+                recipient, err
+            ))),
         };
-
-        return Ok(Response::new().add_message(BankMsg::Send {
-            to_address: recipient,
-            amount: [Coin::new(amount, response_coin.denom)].to_vec(),
-        }));
     }
 
     let res = Response::new();

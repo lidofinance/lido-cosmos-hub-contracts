@@ -285,7 +285,7 @@ pub fn receive_tokenized_share(
     Ok(res)
 }
 
-/// This message must be call by receive_cw20
+/// This message must be called by receive_cw20
 /// This message will undelegate coin and burn stAtom tokens
 pub(crate) fn execute_unbond_statom(
     mut deps: DepsMut,
