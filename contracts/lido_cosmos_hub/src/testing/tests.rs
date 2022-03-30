@@ -885,7 +885,7 @@ pub fn proper_reply() {
         deps.borrow_mut(),
         owner,
         reward_contract,
-        statom_token_contract.clone(),
+        statom_token_contract,
     );
 
     TOKENIZED_SHARE_RECIPIENT

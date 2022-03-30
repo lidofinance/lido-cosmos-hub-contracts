@@ -119,7 +119,7 @@ pub fn build_tokenize_share_msg(
     validator: String,
     tokenized_share_owner: String,
     coin: Coin,
-) -> CosmosMsg {
+) -> StdResult<CosmosMsg> {
     let mut proto_coin = ProtoCoin::new();
     proto_coin.set_amount(coin.amount.to_string());
     proto_coin.set_denom(coin.denom);
@@ -130,12 +130,16 @@ pub fn build_tokenize_share_msg(
     tokenize_msg.set_delegator_address(delegator);
     tokenize_msg.set_tokenized_share_owner(tokenized_share_owner);
 
-    let encoded_tokenize_msg = Binary::from(tokenize_msg.write_to_bytes().unwrap());
+    let encoded_msg_bytes = match tokenize_msg.write_to_bytes() {
+        Ok(b) => b,
+        Err(e) => return Err(StdError::generic_err(e.to_string())),
+    };
+    let encoded_tokenize_msg = Binary::from(encoded_msg_bytes);
 
-    cosmwasm_std::CosmosMsg::Stargate {
+    Ok(cosmwasm_std::CosmosMsg::Stargate {
         type_url: TOKENIZE_SHARES_PATH.to_string(),
         value: encoded_tokenize_msg,
-    }
+    })
 }
 
 fn get_largest_validator(
@@ -331,7 +335,7 @@ pub(crate) fn execute_unbond_statom(
         validator.address,
         sender.clone(),
         Coin::new(undelegation_amount.u128(), params.underlying_coin_denom),
-    );
+    )?;
     let sub_msg = SubMsg {
         id: TOKENIZE_SHARES_REPLY_ID,
         msg: tokenize_msg,
