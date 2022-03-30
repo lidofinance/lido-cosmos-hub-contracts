@@ -834,7 +834,7 @@ pub fn proper_receive_statom() {
     let res = execute(deps.as_mut(), mock_env(), invalid_info, receive);
     assert_eq!(
         res.unwrap_err(),
-        StdError::generic_err("Can not burn more than 0.1 of the top validator's stake")
+        StdError::generic_err("Can not burn more than 0.1 of the top validator's stake, which is currently 2000 uatom")
     );
 
     // successful call
