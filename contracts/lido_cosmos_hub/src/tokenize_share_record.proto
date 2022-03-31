@@ -26,3 +26,14 @@ message MsgRedeemTokensforShares {
 }
 
 message MsgRedeemTokensforSharesResponse {}
+
+message MsgTokenizeShares {
+  string delegator_address = 1;
+  string validator_address = 2;
+  Coin amount = 3;
+  string tokenized_share_owner = 4;
+}
+
+message MsgTokenizeSharesResponse {
+  Coin amount = 1;
+}

@@ -15,8 +15,8 @@
 use basset::hub::{Parameters, QueryMsg};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_slice, to_binary, Coin, ContractResult, CustomQuery, OwnedDeps, Querier, QuerierResult,
-    QueryRequest, SystemError, SystemResult, WasmQuery,
+    from_slice, to_binary, Coin, ContractResult, CustomQuery, Decimal, OwnedDeps, Querier,
+    QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -72,10 +72,12 @@ impl WasmMockQuerier {
                 if *contract_addr == MOCK_HUB_CONTRACT_ADDR {
                     if msg == &to_binary(&QueryMsg::Parameters {}).unwrap() {
                         let params = Parameters {
-                            epoch_period: 0,
                             underlying_coin_denom: "".to_string(),
-                            unbonding_period: 0,
                             paused: None,
+                            max_burn_ratio: Decimal::from_ratio(
+                                Uint128::new(10),
+                                Uint128::new(100),
+                            ),
                         };
                         SystemResult::Ok(ContractResult::from(to_binary(&params)))
                     } else {

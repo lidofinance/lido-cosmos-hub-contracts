@@ -15,7 +15,8 @@
 use crate::state::{CONFIG, PARAMETERS};
 use basset::hub::Parameters;
 use cosmwasm_std::{
-    attr, CosmosMsg, DepsMut, DistributionMsg, Env, MessageInfo, Response, StdError, StdResult,
+    attr, CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, MessageInfo, Response, StdError,
+    StdResult,
 };
 
 /// Update general parameters
@@ -25,8 +26,7 @@ pub fn execute_update_params(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    epoch_period: Option<u64>,
-    unbonding_period: Option<u64>,
+    max_burn_ratio: Decimal,
 ) -> StdResult<Response> {
     // only owner can send this message.
     let config = CONFIG.load(deps.storage)?;
@@ -38,10 +38,9 @@ pub fn execute_update_params(
     let params: Parameters = PARAMETERS.load(deps.storage)?;
 
     let new_params = Parameters {
-        epoch_period: epoch_period.unwrap_or(params.epoch_period),
         underlying_coin_denom: params.underlying_coin_denom,
-        unbonding_period: unbonding_period.unwrap_or(params.unbonding_period),
         paused: params.paused,
+        max_burn_ratio,
     };
 
     PARAMETERS.save(deps.storage, &new_params)?;

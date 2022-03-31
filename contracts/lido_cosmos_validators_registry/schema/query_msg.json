@@ -25,6 +25,38 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "has_validator"
+      ],
+      "properties": {
+        "has_validator": {
+          "type": "object",
+          "required": [
+            "address"
+          ],
+          "properties": {
+            "address": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_largest_validator"
+      ],
+      "properties": {
+        "get_largest_validator": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }

@@ -21,7 +21,9 @@ use cosmwasm_std::{
 };
 use cosmwasm_storage::to_length_prefixed;
 use cw20_base::state::{MinterData, TokenInfo};
-use lido_cosmos_validators_registry::registry::ValidatorResponse as RegistryValidator;
+use lido_cosmos_validators_registry::registry::{
+    ValidatorResponse as RegistryValidator, ValidatorResponse,
+};
 use std::collections::HashMap;
 
 use crate::tokenize_share_record::{
@@ -32,6 +34,7 @@ use crate::tokenized::TOKENIZE_SHARE_RECORD_BY_DENOM_PATH;
 use basset::hub::Config;
 use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg};
 use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
+use lido_cosmos_validators_registry::msg::QueryMsg::GetLargestValidator;
 use protobuf::Message;
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
@@ -39,6 +42,8 @@ use serde::{Deserialize, Serialize};
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 pub const VALIDATORS_REGISTRY: &str = "validators_registry";
+pub const LARGEST_VALIDATOR: &str = "largest_validator";
+pub const MAX_VALIDATOR_STAKED: Uint128 = Uint128::new(20000);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -132,6 +137,14 @@ impl WasmMockQuerier {
                             validators
                                 .sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
                             return SystemResult::Ok(ContractResult::from(to_binary(&validators)));
+                        }
+                        GetLargestValidator {} => {
+                            return SystemResult::Ok(ContractResult::from(to_binary(
+                                &ValidatorResponse {
+                                    address: LARGEST_VALIDATOR.to_string(),
+                                    total_delegated: MAX_VALIDATOR_STAKED,
+                                },
+                            )));
                         }
                         _ => {
                             unimplemented!()
