@@ -452,7 +452,7 @@ fn query_withdrawable_unbonded(
     let coin_denom = params.underlying_coin_denom;
     let hub_balance = deps
         .querier
-        .query_balance(&env.contract.address, &*coin_denom)?
+        .query_balance(&env.contract.address, coin_denom)?
         .amount;
     let historical_time = env.block.time.seconds() - params.unbonding_period;
     let withdrawable_amount =

@@ -34,7 +34,7 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     if msg.lido_fee_rate > Decimal::one() {
         return Err(StdError::generic_err(format!(
-            "validation error: lido rate fee {} is to high, max rate is 1",
+            "validation error: lido rate fee {} is too high, max rate is 1",
             msg.lido_fee_rate
         )));
     }
