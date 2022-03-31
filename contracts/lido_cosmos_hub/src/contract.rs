@@ -476,11 +476,14 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> StdResult<Response> {
                         }
                     };
 
-                if tokenize_shares_response.amount.is_none() {
-                    return Err(StdError::generic_err("empty coin in tokenize response"));
-                }
-
-                let response_coin = tokenize_shares_response.amount.unwrap();
+                let response_coin = match tokenize_shares_response.amount.into_option() {
+                    Some(v) => v,
+                    None => {
+                        return Err(StdError::generic_err(
+                            "failed to retrieve coin from tokenize share response",
+                        ))
+                    }
+                };
 
                 let amount = match u128::from_str(response_coin.amount.as_str()) {
                     Ok(a) => a,
