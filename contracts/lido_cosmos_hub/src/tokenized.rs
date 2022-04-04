@@ -152,7 +152,6 @@ fn get_largest_validator(
     }))
 }
 
-// TODO: remove unwraps
 pub fn receive_tokenized_share(
     mut deps: DepsMut,
     env: Env,
@@ -177,10 +176,6 @@ pub fn receive_tokenized_share(
 
     // Trying to get TokenizeShareRecord for every voucher we've got by denom.
     // If we can't find a record or we get an error, tx reverted
-    //
-    // Note: tokenized share denom looks like this:
-    // cosmosvaloper1qp49fdjtlsrv6jkx3gc8urp2ncg88s6mcversm12345, where 12345 is the recordId
-    // (see https://github.com/iqlusioninc/liquidity-staking-module/blob/master/x/staking/keeper/msg_server.go#L436)
     for fund in info.funds.into_iter() {
         let tokenize_share = if let Some(t) =
             get_tokenize_share_record_by_denom(deps.as_ref(), fund.denom.clone())?

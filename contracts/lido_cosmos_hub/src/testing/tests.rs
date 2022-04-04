@@ -141,24 +141,25 @@ pub fn do_register_tokenize_share_record(
     deps.querier.add_tokenize_share_record(record);
 }
 
-fn new_tokenize_share(
-    id: u64,
-    owner: String,
-    module_account: String,
-    denom: String,
-    validator: String,
-) -> TokenizeShareRecord {
-    let mut record = TokenizeShareRecord::new();
+impl TokenizeShareRecord {
+    pub fn new_tokenize_share(
+        id: u64,
+        owner: String,
+        module_account: String,
+        denom: String,
+        validator: String,
+    ) -> TokenizeShareRecord {
+        let mut record = TokenizeShareRecord::new();
 
-    record.set_id(id);
-    record.set_owner(owner);
-    record.set_module_account(module_account);
-    record.set_share_token_denom(denom);
-    record.set_validator(validator);
+        record.set_id(id);
+        record.set_owner(owner);
+        record.set_module_account(module_account);
+        record.set_share_token_denom(denom);
+        record.set_validator(validator);
 
-    record
+        record
+    }
 }
-
 pub fn do_bond_statom(
     deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
     addr: String,
@@ -1960,7 +1961,7 @@ fn proper_receive_tokenized_share() {
     // receive of share with not whitelisted validator
     do_register_tokenize_share_record(
         &mut deps,
-        new_tokenize_share(
+        TokenizeShareRecord::new_tokenize_share(
             1,
             addr1.clone(),
             module_account.clone(),
@@ -2008,7 +2009,7 @@ fn proper_receive_tokenized_share() {
     // successful receive
     do_register_tokenize_share_record(
         &mut deps,
-        new_tokenize_share(
+        TokenizeShareRecord::new_tokenize_share(
             2,
             addr1.clone(),
             module_account.clone(),
@@ -2069,7 +2070,7 @@ fn proper_receive_tokenized_share() {
     // successful receive with some slashing happened in delegation
     do_register_tokenize_share_record(
         &mut deps,
-        new_tokenize_share(
+        TokenizeShareRecord::new_tokenize_share(
             3,
             addr1.clone(),
             module_account.clone(),
