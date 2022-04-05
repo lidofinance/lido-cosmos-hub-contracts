@@ -108,7 +108,7 @@ pub fn initialize<S: Storage, A: Api, Q: Querier>(
 ) {
     let msg = InstantiateMsg {
         underlying_coin_denom: "uatom".to_string(),
-        max_burn_rate: Decimal::from_ratio(Uint128::new(10), Uint128::new(100)),
+        max_burn_ratio: Decimal::from_ratio(Uint128::new(10), Uint128::new(100)),
     };
 
     let owner_info = mock_info(owner.as_str(), &[]);
@@ -210,7 +210,7 @@ fn proper_initialization() {
     // successful call
     let msg = InstantiateMsg {
         underlying_coin_denom: "uatom".to_string(),
-        max_burn_rate: Decimal::from_ratio(Uint128::new(10), Uint128::new(100)),
+        max_burn_ratio: Decimal::from_ratio(Uint128::new(10), Uint128::new(100)),
     };
 
     let owner = String::from("owner1");
@@ -821,7 +821,7 @@ pub fn proper_receive_statom() {
     let res = execute(deps.as_mut(), mock_env(), invalid_info, receive);
     assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
 
-    // try to burn more than max_burn_rate
+    // try to burn more than max_burn_ratio
     let params: Parameters =
         from_binary(&query(deps.as_ref(), mock_env(), Params {}).unwrap()).unwrap();
     let failed_unbond = Unbond {};
@@ -1412,7 +1412,7 @@ pub fn test_update_params() {
 
     // test with no swap denom.
     let update_prams = UpdateParams {
-        max_burn_rate: Decimal::from_ratio(Uint128::new(10), Uint128::new(100)),
+        max_burn_ratio: Decimal::from_ratio(Uint128::new(10), Uint128::new(100)),
     };
     let owner = String::from("owner1");
     let statom_token_contract = String::from("statom_token");
@@ -1442,7 +1442,7 @@ pub fn test_update_params() {
     assert_eq!(params.underlying_coin_denom, "uatom");
 
     let update_prams = UpdateParams {
-        max_burn_rate: Decimal::from_ratio(Uint128::new(20), Uint128::new(100)),
+        max_burn_ratio: Decimal::from_ratio(Uint128::new(20), Uint128::new(100)),
     };
 
     // the result must be 1
@@ -1518,7 +1518,7 @@ pub fn proper_update_config() {
 
     // new owner can send the owner related messages
     let update_prams = UpdateParams {
-        max_burn_rate: Decimal::from_ratio(Uint128::new(10), Uint128::new(100)),
+        max_burn_ratio: Decimal::from_ratio(Uint128::new(10), Uint128::new(100)),
     };
 
     let new_owner_info = mock_info(&new_owner, &[]);
@@ -1527,7 +1527,7 @@ pub fn proper_update_config() {
 
     // previous owner cannot send this message
     let update_prams = UpdateParams {
-        max_burn_rate: Decimal::from_ratio(Uint128::new(10), Uint128::new(100)),
+        max_burn_ratio: Decimal::from_ratio(Uint128::new(10), Uint128::new(100)),
     };
 
     let new_owner_info = mock_info(&owner, &[]);

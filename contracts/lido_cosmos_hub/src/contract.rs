@@ -69,7 +69,7 @@ pub fn instantiate(
     let params = Parameters {
         underlying_coin_denom: msg.underlying_coin_denom,
         paused: Some(false),
-        max_burn_ratio: msg.max_burn_rate,
+        max_burn_ratio: msg.max_burn_ratio,
     };
 
     PARAMETERS.save(deps.storage, &params)?;
@@ -86,8 +86,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::BondRewards {} => execute_bond(deps, env, info, BondType::BondRewards),
         ExecuteMsg::DispatchRewards {} => execute_dispatch_rewards(deps, env, info),
         ExecuteMsg::CheckSlashing {} => execute_slashing(deps, env),
-        ExecuteMsg::UpdateParams { max_burn_rate } => {
-            execute_update_params(deps, env, info, max_burn_rate)
+        ExecuteMsg::UpdateParams { max_burn_ratio } => {
+            execute_update_params(deps, env, info, max_burn_ratio)
         }
         ExecuteMsg::UpdateConfig {
             owner,

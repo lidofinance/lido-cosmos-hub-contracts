@@ -51,10 +51,10 @@
         "update_params": {
           "type": "object",
           "required": [
-            "max_burn_rate"
+            "max_burn_ratio"
           ],
           "properties": {
-            "max_burn_rate": {
+            "max_burn_ratio": {
               "$ref": "#/definitions/Decimal"
             }
           }

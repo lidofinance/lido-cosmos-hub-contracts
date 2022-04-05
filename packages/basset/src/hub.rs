@@ -16,7 +16,7 @@ pub type UnbondRequest = Vec<(u64, Uint128)>;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub underlying_coin_denom: String,
-    pub max_burn_rate: Decimal,
+    pub max_burn_ratio: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
@@ -68,7 +68,7 @@ pub enum ExecuteMsg {
 
     /// update the parameters that is needed for the contract
     UpdateParams {
-        max_burn_rate: Decimal,
+        max_burn_ratio: Decimal,
     },
 
     /// Pauses the contracts. Only the owner or allowed guardians can pause the contracts

@@ -3,24 +3,12 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "epoch_period",
-    "max_burn_rate",
-    "unbonding_period",
+    "max_burn_ratio",
     "underlying_coin_denom"
   ],
   "properties": {
-    "epoch_period": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
-    "max_burn_rate": {
+    "max_burn_ratio": {
       "$ref": "#/definitions/Decimal"
-    },
-    "unbonding_period": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
     },
     "underlying_coin_denom": {
       "type": "string"

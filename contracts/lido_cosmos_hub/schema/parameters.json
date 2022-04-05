@@ -3,18 +3,12 @@
   "title": "Parameters",
   "type": "object",
   "required": [
+    "max_burn_ratio",
     "underlying_coin_denom"
   ],
   "properties": {
     "max_burn_ratio": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/Decimal"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "$ref": "#/definitions/Decimal"
     },
     "paused": {
       "type": [
