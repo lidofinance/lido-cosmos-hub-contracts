@@ -25,6 +25,7 @@ use lido_cosmos_validators_registry::registry::{
     ValidatorResponse as RegistryValidator, ValidatorResponse,
 };
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
 use crate::tokenize_share_record::{
     QueryTokenizeShareRecordByDenomRequest, QueryTokenizeShareRecordByDenomResponse,
@@ -63,6 +64,7 @@ pub fn mock_dependencies(
         storage: MockStorage::default(),
         api: MockApi::default(),
         querier: custom_querier,
+        custom_query_type: PhantomData,
     }
 }
 

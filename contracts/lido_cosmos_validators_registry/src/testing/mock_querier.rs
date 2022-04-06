@@ -21,6 +21,7 @@ use cosmwasm_std::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 
@@ -42,6 +43,7 @@ pub fn mock_dependencies(
         storage: MockStorage::default(),
         api: MockApi::default(),
         querier: custom_querier,
+        custom_query_type: PhantomData,
     }
 }
 
