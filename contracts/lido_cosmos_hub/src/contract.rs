@@ -389,7 +389,7 @@ fn query_guardians(deps: Deps) -> StdResult<Vec<String>> {
 
     let guardians_decoded: Result<Vec<String>, StdError> = guardians.collect();
 
-    Ok(guardians_decoded.unwrap())
+    guardians_decoded
 }
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
