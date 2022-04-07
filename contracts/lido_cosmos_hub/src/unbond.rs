@@ -59,10 +59,12 @@ pub fn execute_withdraw_unbonded(
     let (withdraw_amount, deprecated_batches) =
         get_finished_amount(deps.storage, sender_human.to_string())?;
     if withdraw_amount.is_zero() {
-        return Err(StdError::generic_err(format!(
-            "No withdrawable {} assets are available yet",
-            coin_denom
-        )));
+        let res = Response::new().add_attributes(vec![
+            attr("action", "finish_burn"),
+            attr("from", contract_address),
+            attr("amount", withdraw_amount),
+        ]);
+        return Ok(res);
     }
 
     // remove the previous batches for the user

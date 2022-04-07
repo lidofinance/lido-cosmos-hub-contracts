@@ -1647,14 +1647,9 @@ pub fn proper_withdraw_unbonded_statom() {
         env.clone(),
         info.clone(),
         wdraw_unbonded_msg.clone(),
-    );
-
-    // trigger undelegation message
-    assert!(wdraw_unbonded_res.is_err(), "unbonded error");
-    assert_eq!(
-        wdraw_unbonded_res.unwrap_err(),
-        StdError::generic_err("No withdrawable uatom assets are available yet")
-    );
+    )
+    .unwrap();
+    assert_eq!(wdraw_unbonded_res.attributes[2].value, "0");
 
     let res = execute_unbond_statom(
         deps.as_mut(),
@@ -1843,12 +1838,9 @@ pub fn proper_withdraw_unbonded_respect_slashing_statom() {
         env.clone(),
         info.clone(),
         wdraw_unbonded_msg.clone(),
-    );
-    assert!(wdraw_unbonded_res.is_err(), "unbonded error");
-    assert_eq!(
-        wdraw_unbonded_res.unwrap_err(),
-        StdError::generic_err("No withdrawable uatom assets are available yet")
-    );
+    )
+    .unwrap();
+    assert_eq!(wdraw_unbonded_res.attributes[2].value, "0");
 
     // trigger undelegation message
     let res =
@@ -2000,12 +1992,9 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_statom() {
         mock_env(),
         info.clone(),
         wdraw_unbonded_msg.clone(),
-    );
-    assert!(wdraw_unbonded_res.is_err(), "unbonded error");
-    assert_eq!(
-        wdraw_unbonded_res.unwrap_err(),
-        StdError::generic_err("No withdrawable uatom assets are available yet")
-    );
+    )
+    .unwrap();
+    assert_eq!(wdraw_unbonded_res.attributes[2].value, "0");
 
     // trigger undelegation message
     let res =
