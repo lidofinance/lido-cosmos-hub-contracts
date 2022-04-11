@@ -543,12 +543,11 @@ impl QueryTokenizeShareRecordByDenomResponse {
 
     // Mutable pointer to the field.
     // If field is not initialized, it is initialized with default value first.
-    #[allow(clippy::expect_used)]
     pub fn mut_record(&mut self) -> &mut TokenizeShareRecord {
         if self.record.is_none() {
             self.record.set_default();
         }
-        self.record.as_mut().expect("empty record")
+        self.record.as_mut().unwrap()
     }
 
     // Take field
@@ -946,12 +945,11 @@ impl MsgRedeemTokensforShares {
 
     // Mutable pointer to the field.
     // If field is not initialized, it is initialized with default value first.
-    #[allow(clippy::expect_used)]
     pub fn mut_amount(&mut self) -> &mut Coin {
         if self.amount.is_none() {
             self.amount.set_default();
         }
-        self.amount.as_mut().expect("no amount")
+        self.amount.as_mut().unwrap()
     }
 
     // Take field
@@ -1307,12 +1305,11 @@ impl MsgTokenizeShares {
 
     // Mutable pointer to the field.
     // If field is not initialized, it is initialized with default value first.
-    #[allow(clippy::expect_used)]
     pub fn mut_amount(&mut self) -> &mut Coin {
         if self.amount.is_none() {
             self.amount.set_default();
         }
-        self.amount.as_mut().expect("no amount")
+        self.amount.as_mut().unwrap()
     }
 
     // Take field
@@ -1553,12 +1550,11 @@ impl MsgTokenizeSharesResponse {
 
     // Mutable pointer to the field.
     // If field is not initialized, it is initialized with default value first.
-    #[allow(clippy::expect_used)]
     pub fn mut_amount(&mut self) -> &mut Coin {
         if self.amount.is_none() {
             self.amount.set_default();
         }
-        self.amount.as_mut().expect("no amount")
+        self.amount.as_mut().unwrap()
     }
 
     // Take field
@@ -1766,9 +1762,8 @@ static file_descriptor_proto_data: &'static [u8] = b"\
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;
 
-#[allow(clippy::expect_used)]
 fn parse_descriptor_proto() -> ::protobuf::descriptor::FileDescriptorProto {
-    ::protobuf::Message::parse_from_bytes(file_descriptor_proto_data).expect("cannot parse file descriptor data")
+    ::protobuf::Message::parse_from_bytes(file_descriptor_proto_data).unwrap()
 }
 
 pub fn file_descriptor_proto() -> &'static ::protobuf::descriptor::FileDescriptorProto {

@@ -25,4 +25,5 @@ mod tokenized;
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod testing;
+#[allow(clippy::unwrap_used)]
 mod tokenize_share_record;
