@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![warn(clippy::unwrap_used, clippy::expect_used)]
+
 pub mod common;
 pub mod contract;
 pub mod msg;
 pub mod registry;
 
+#[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod testing;
