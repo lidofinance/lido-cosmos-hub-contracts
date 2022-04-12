@@ -14,12 +14,10 @@
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use std::string::FromUtf8Error;
-
 use cosmwasm_std::{
-    attr, from_binary, to_binary, BankMsg, Binary, Coin, ContractResult, CosmosMsg, Decimal, Deps,
-    DepsMut, DistributionMsg, Env, MessageInfo, Order, QueryRequest, Reply, Response, StakingMsg,
-    StdError, StdResult, Uint128, WasmMsg, WasmQuery,
+    attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
+    DistributionMsg, Env, MessageInfo, Order, QueryRequest, Reply, Response, StakingMsg, StdError,
+    StdResult, SubMsgResult, Uint128, WasmMsg, WasmQuery,
 };
 
 use crate::config::{execute_update_config, execute_update_params};
@@ -388,9 +386,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 fn query_guardians(deps: Deps) -> StdResult<Vec<String>> {
     let guardians = GUARDIANS.keys(deps.storage, None, None, Order::Ascending);
-    let guardians_decoded: Result<Vec<String>, FromUtf8Error> =
-        guardians.map(String::from_utf8).collect();
-    Ok(guardians_decoded?)
+
+    let guardians_decoded: Result<Vec<String>, StdError> = guardians.collect();
+
+    guardians_decoded
 }
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
@@ -456,7 +455,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> StdResult<Response> {
         let recipient = TOKENIZED_SHARE_RECIPIENT.load(deps.storage)?;
 
         return match msg.result {
-            ContractResult::Ok(result) => {
+            SubMsgResult::Ok(result) => {
                 let result_data = match result.data {
                     None => {
                         return Err(StdError::generic_err(
@@ -495,7 +494,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> StdResult<Response> {
                     amount: [Coin::new(amount, response_coin.denom)].to_vec(),
                 }))
             }
-            ContractResult::Err(err) => Err(StdError::generic_err(format!(
+            SubMsgResult::Err(err) => Err(StdError::generic_err(format!(
                 "tokenize shares failed for {}: {}",
                 recipient, err
             ))),

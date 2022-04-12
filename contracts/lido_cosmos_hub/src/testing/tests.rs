@@ -31,10 +31,10 @@
 //!      });
 //! 4. Anywhere you see query(deps.as_ref(), ...) you must replace it with query(deps.as_mut(), ...)
 use cosmwasm_std::{
-    coin, coins, from_binary, to_binary, Addr, Api, BankMsg, Binary, Coin, ContractResult,
-    CosmosMsg, Decimal, DepsMut, DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps,
-    Querier, QueryRequest, Reply, Response, StakingMsg, StdError, Storage, SubMsgExecutionResponse,
-    Uint128, Validator, WasmMsg, WasmQuery,
+    coin, coins, from_binary, to_binary, Addr, Api, BankMsg, Binary, Coin, CosmosMsg, Decimal,
+    DepsMut, DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps, Querier, QueryRequest,
+    Reply, Response, StakingMsg, StdError, Storage, SubMsgExecutionResponse, SubMsgResult, Uint128,
+    Validator, WasmMsg, WasmQuery,
 };
 use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
 use lido_cosmos_validators_registry::registry::ValidatorResponse as RegistryValidator;
@@ -907,7 +907,7 @@ pub fn proper_reply() {
         mock_env(),
         Reply {
             id: TOKENIZE_SHARES_REPLY_ID,
-            result: ContractResult::Ok(SubMsgExecutionResponse {
+            result: SubMsgResult::Ok(SubMsgExecutionResponse {
                 events: vec![],
                 data: Some(encoded_response_msg),
             }),
