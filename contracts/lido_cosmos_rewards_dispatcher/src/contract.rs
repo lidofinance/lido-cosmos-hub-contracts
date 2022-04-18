@@ -161,7 +161,7 @@ pub fn execute_dispatch_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> S
     if !statom_rewards.amount.is_zero() {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: hub_addr.to_string(),
-            msg: to_binary(&BondRewards {}).unwrap(),
+            msg: to_binary(&BondRewards {})?,
             funds: vec![statom_rewards.clone()],
         }));
     }

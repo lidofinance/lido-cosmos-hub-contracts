@@ -15,9 +15,8 @@ pub type UnbondRequest = Vec<(u64, Uint128)>;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub epoch_period: u64,
     pub underlying_coin_denom: String,
-    pub unbonding_period: u64,
+    pub max_burn_ratio: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
@@ -41,8 +40,8 @@ pub struct Config {
 }
 
 impl State {
-    pub fn update_statom_exchange_rate(&mut self, total_issued: Uint128, requested: Uint128) {
-        let actual_supply = total_issued + requested;
+    pub fn update_statom_exchange_rate(&mut self, total_issued: Uint128) {
+        let actual_supply = total_issued;
         if self.total_bond_statom_amount.is_zero() || actual_supply.is_zero() {
             self.statom_exchange_rate = Decimal::one()
         } else {
@@ -69,8 +68,7 @@ pub enum ExecuteMsg {
 
     /// update the parameters that is needed for the contract
     UpdateParams {
-        epoch_period: Option<u64>,
-        unbonding_period: Option<u64>,
+        max_burn_ratio: Decimal,
     },
 
     /// Pauses the contracts. Only the owner or allowed guardians can pause the contracts
@@ -92,9 +90,6 @@ pub enum ExecuteMsg {
 
     /// Dispatch Rewards
     DispatchRewards {},
-
-    /// Send back unbonded coin to the user
-    WithdrawUnbonded {},
 
     /// Check whether the slashing has happened or not
     CheckSlashing {},
@@ -126,6 +121,8 @@ pub enum ExecuteMsg {
     RemoveGuardians {
         addresses: Vec<String>,
     },
+
+    ReceiveTokenizedShare {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -135,45 +132,9 @@ pub enum Cw20HookMsg {
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Parameters {
-    pub epoch_period: u64,
     pub underlying_coin_denom: String,
-    pub unbonding_period: u64,
     pub paused: Option<bool>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct CurrentBatch {
-    pub id: u64,
-    pub requested_statom: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UnbondHistory {
-    pub batch_id: u64,
-    pub time: u64,
-
-    pub statom_amount: Uint128,
-    pub statom_applied_exchange_rate: Decimal,
-    pub statom_withdraw_rate: Decimal,
-
-    pub released: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UnbondHistoryResponse {
-    pub batch_id: u64,
-    pub time: u64,
-
-    pub statom_amount: Uint128,
-    pub statom_applied_exchange_rate: Decimal,
-    pub statom_withdraw_rate: Decimal,
-
-    pub released: bool,
-}
-
-#[derive(JsonSchema, Serialize, Deserialize, Default)]
-pub struct UnbondWaitEntity {
-    pub statom_amount: Uint128,
+    pub max_burn_ratio: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -194,27 +155,6 @@ pub struct ConfigResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct CurrentBatchResponse {
-    pub id: u64,
-    pub requested_statom: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct WithdrawableUnbondedResponse {
-    pub withdrawable: Uint128,
-}
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UnbondRequestsResponse {
-    pub address: String,
-    pub requests: UnbondRequest,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AllHistoryResponse {
-    pub history: Vec<UnbondHistoryResponse>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -222,18 +162,7 @@ pub struct MigrateMsg {}
 pub enum QueryMsg {
     Config {},
     State {},
-    CurrentBatch {},
-    WithdrawableUnbonded {
-        address: String,
-    },
     Parameters {},
-    UnbondRequests {
-        address: String,
-    },
-    AllHistory {
-        start_from: Option<u64>,
-        limit: Option<u32>,
-    },
     Guardians,
 }
 

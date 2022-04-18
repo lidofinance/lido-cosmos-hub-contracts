@@ -14,30 +14,26 @@
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use std::string::FromUtf8Error;
-
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128,
-    WasmMsg, WasmQuery,
+    attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
+    DistributionMsg, Env, MessageInfo, Order, QueryRequest, Reply, Response, StakingMsg, StdError,
+    StdResult, SubMsgResult, Uint128, WasmMsg, WasmQuery,
 };
 
 use crate::config::{execute_update_config, execute_update_params};
-use crate::state::{
-    all_unbond_history, get_unbond_requests, query_get_finished_amount, CONFIG, CURRENT_BATCH,
-    GUARDIANS, PARAMETERS, STATE,
-};
-use crate::unbond::{execute_unbond_statom, execute_withdraw_unbonded};
+use crate::state::{CONFIG, GUARDIANS, PARAMETERS, STATE, TOKENIZED_SHARE_RECIPIENT};
 
 use crate::bond::execute_bond;
+use crate::tokenize_share_record::MsgTokenizeSharesResponse;
+use crate::tokenized::{execute_unbond_statom, receive_tokenized_share, TOKENIZE_SHARES_REPLY_ID};
 use basset::hub::{
-    AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
-    InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondHistoryResponse,
-    UnbondRequestsResponse, WithdrawableUnbondedResponse,
+    BondType, Config, ConfigResponse, InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State,
+    StateResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
 use lido_cosmos_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
+use std::str::FromStr;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -69,19 +65,12 @@ pub fn instantiate(
 
     // instantiate parameters
     let params = Parameters {
-        epoch_period: msg.epoch_period,
         underlying_coin_denom: msg.underlying_coin_denom,
-        unbonding_period: msg.unbonding_period,
         paused: Some(false),
+        max_burn_ratio: msg.max_burn_ratio,
     };
 
     PARAMETERS.save(deps.storage, &params)?;
-
-    let batch = CurrentBatch {
-        id: 1,
-        requested_statom: Default::default(),
-    };
-    CURRENT_BATCH.save(deps.storage, &batch)?;
 
     let res = Response::new();
     Ok(res)
@@ -94,12 +83,10 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::BondForStAtom {} => execute_bond(deps, env, info, BondType::StAtom),
         ExecuteMsg::BondRewards {} => execute_bond(deps, env, info, BondType::BondRewards),
         ExecuteMsg::DispatchRewards {} => execute_dispatch_rewards(deps, env, info),
-        ExecuteMsg::WithdrawUnbonded {} => execute_withdraw_unbonded(deps, env, info),
         ExecuteMsg::CheckSlashing {} => execute_slashing(deps, env),
-        ExecuteMsg::UpdateParams {
-            epoch_period,
-            unbonding_period,
-        } => execute_update_params(deps, env, info, epoch_period, unbonding_period),
+        ExecuteMsg::UpdateParams { max_burn_ratio } => {
+            execute_update_params(deps, env, info, max_burn_ratio)
+        }
         ExecuteMsg::UpdateConfig {
             owner,
             rewards_dispatcher_contract,
@@ -124,6 +111,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::RemoveGuardians { addresses } => {
             execute_remove_guardians(deps, env, info, addresses)
         }
+        ExecuteMsg::ReceiveTokenizedShare {} => receive_tokenized_share(deps, env, info),
     }
 }
 
@@ -350,13 +338,11 @@ fn query_actual_state(deps: Deps, env: Env) -> StdResult<State> {
 
     // Need total issued for updating the exchange rate
     state.total_statom_issued = query_total_statom_issued(deps)?;
-    let current_batch = CURRENT_BATCH.load(deps.storage)?;
-    let current_requested_statom = current_batch.requested_statom;
 
     if state.total_bond_statom_amount.u128() > actual_total_bonded.u128() {
         state.total_bond_statom_amount = actual_total_bonded;
     }
-    state.update_statom_exchange_rate(state.total_statom_issued, current_requested_statom);
+    state.update_statom_exchange_rate(state.total_statom_issued);
     Ok(state)
 }
 
@@ -393,24 +379,17 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps, env)?),
-        QueryMsg::CurrentBatch {} => to_binary(&query_current_batch(deps)?),
-        QueryMsg::WithdrawableUnbonded { address } => {
-            to_binary(&query_withdrawable_unbonded(deps, address, env)?)
-        }
         QueryMsg::Parameters {} => to_binary(&query_params(deps)?),
-        QueryMsg::UnbondRequests { address } => to_binary(&query_unbond_requests(deps, address)?),
-        QueryMsg::AllHistory { start_from, limit } => {
-            to_binary(&query_unbond_requests_limitation(deps, start_from, limit)?)
-        }
         QueryMsg::Guardians => to_binary(&query_guardians(deps)?),
     }
 }
 
 fn query_guardians(deps: Deps) -> StdResult<Vec<String>> {
     let guardians = GUARDIANS.keys(deps.storage, None, None, Order::Ascending);
-    let guardians_decoded: Result<Vec<String>, FromUtf8Error> =
-        guardians.map(String::from_utf8).collect();
-    Ok(guardians_decoded?)
+
+    let guardians_decoded: Result<Vec<String>, StdError> = guardians.collect();
+
+    guardians_decoded
 }
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
@@ -440,29 +419,6 @@ fn query_state(deps: Deps, env: Env) -> StdResult<StateResponse> {
     Ok(res)
 }
 
-fn query_current_batch(deps: Deps) -> StdResult<CurrentBatchResponse> {
-    let current_batch = CURRENT_BATCH.load(deps.storage)?;
-    Ok(CurrentBatchResponse {
-        id: current_batch.id,
-        requested_statom: current_batch.requested_statom,
-    })
-}
-
-fn query_withdrawable_unbonded(
-    deps: Deps,
-    address: String,
-    env: Env,
-) -> StdResult<WithdrawableUnbondedResponse> {
-    let params = PARAMETERS.load(deps.storage)?;
-    let historical_time = env.block.time.seconds() - params.unbonding_period;
-    let all_requests = query_get_finished_amount(deps.storage, address, historical_time)?;
-
-    let withdrawable = WithdrawableUnbondedResponse {
-        withdrawable: all_requests,
-    };
-    Ok(withdrawable)
-}
-
 fn query_params(deps: Deps) -> StdResult<Parameters> {
     PARAMETERS.load(deps.storage)
 }
@@ -480,39 +436,71 @@ pub(crate) fn query_total_statom_issued(deps: Deps) -> StdResult<Uint128> {
     Ok(token_info.total_supply)
 }
 
-fn query_unbond_requests(deps: Deps, address: String) -> StdResult<UnbondRequestsResponse> {
-    let requests = get_unbond_requests(deps.storage, address.clone())?;
-    let res = UnbondRequestsResponse { address, requests };
-    Ok(res)
-}
-
-fn query_unbond_requests_limitation(
-    deps: Deps,
-    start: Option<u64>,
-    limit: Option<u32>,
-) -> StdResult<AllHistoryResponse> {
-    let requests = all_unbond_history(deps.storage, start, limit)?;
-    let requests_responses = requests
-        .iter()
-        .map(|r| UnbondHistoryResponse {
-            batch_id: r.batch_id,
-            time: r.time,
-
-            statom_amount: r.statom_amount,
-            statom_applied_exchange_rate: r.statom_applied_exchange_rate,
-            statom_withdraw_rate: r.statom_withdraw_rate,
-
-            released: r.released,
-        })
-        .collect();
-
-    let res = AllHistoryResponse {
-        history: requests_responses,
-    };
-    Ok(res)
-}
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::new())
+}
+
+/// # Description
+/// The entry point to the contract for processing the reply from the submessage
+/// # Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **_env** is the object of type [`Env`].
+///
+/// * **msg** is the object of type [`Reply`].
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> StdResult<Response> {
+    if msg.id == TOKENIZE_SHARES_REPLY_ID {
+        let recipient = TOKENIZED_SHARE_RECIPIENT.load(deps.storage)?;
+
+        return match msg.result {
+            SubMsgResult::Ok(result) => {
+                let result_data = match result.data {
+                    None => {
+                        return Err(StdError::generic_err(
+                            "no result data in tokenize share response",
+                        ))
+                    }
+                    Some(data) => data,
+                };
+                let tokenize_shares_response: MsgTokenizeSharesResponse =
+                    match protobuf::Message::parse_from_bytes(result_data.as_slice()) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            return Err(StdError::generic_err(format!(
+                                "failed to parse tokenize response from bytes: {}",
+                                e
+                            )))
+                        }
+                    };
+
+                let response_coin = match tokenize_shares_response.amount.into_option() {
+                    Some(v) => v,
+                    None => {
+                        return Err(StdError::generic_err(
+                            "failed to retrieve coin from tokenize share response",
+                        ))
+                    }
+                };
+
+                let amount = match u128::from_str(response_coin.amount.as_str()) {
+                    Ok(a) => a,
+                    Err(_) => return Err(StdError::generic_err("failed to parse response amount")),
+                };
+
+                Ok(Response::new().add_message(BankMsg::Send {
+                    to_address: recipient,
+                    amount: [Coin::new(amount, response_coin.denom)].to_vec(),
+                }))
+            }
+            SubMsgResult::Err(err) => Err(StdError::generic_err(format!(
+                "tokenize shares failed for {}: {}",
+                recipient, err
+            ))),
+        };
+    }
+
+    let res = Response::new();
+    Ok(res)
 }

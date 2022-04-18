@@ -206,12 +206,41 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&validators)
         }
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::HasValidator { address } => to_binary(&query_has_validator(deps, address)),
+        QueryMsg::GetLargestValidator {} => to_binary(&query_largest_validator(deps)?),
     }
 }
 
 fn query_config(deps: Deps) -> StdResult<Config> {
     let config = CONFIG.load(deps.storage)?;
     Ok(config)
+}
+
+fn query_has_validator(deps: Deps, address: String) -> bool {
+    REGISTRY.has(deps.storage, address.as_bytes())
+}
+
+fn query_largest_validator(deps: Deps) -> StdResult<ValidatorResponse> {
+    let config = CONFIG.load(deps.storage)?;
+    let hub_address = config.hub_contract;
+
+    let mut largest_validator_address = String::new();
+    let mut largest_delegation_amount = Uint128::zero();
+    for delegation in deps.querier.query_all_delegations(&hub_address)? {
+        if delegation.amount.amount > largest_delegation_amount {
+            largest_validator_address = delegation.validator;
+            largest_delegation_amount = delegation.amount.amount;
+        }
+    }
+
+    if largest_delegation_amount.is_zero() {
+        return Err(StdError::generic_err("No delegations found"));
+    }
+
+    Ok(ValidatorResponse {
+        address: largest_validator_address,
+        total_delegated: largest_delegation_amount,
+    })
 }
 
 fn query_validators(deps: Deps) -> StdResult<Vec<ValidatorResponse>> {
