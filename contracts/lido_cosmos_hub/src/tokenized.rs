@@ -42,9 +42,9 @@ pub const TOKENIZE_SHARES_REPLY_ID: u64 = 1;
 pub const TOKENIZE_SHARE_RECORD_BY_DENOM_PATH: &str =
     "/liquidstaking.staking.v1beta1.Query/TokenizeShareRecordByDenom";
 pub const TOKENIZE_SHARE_RECORD_REDEEM_MSG_TYPE_URL: &str =
-    "/liquidstaking.staking.v1beta1.Msg/RedeemTokens";
+    "/liquidstaking.staking.v1beta1.MsgRedeemTokens";
 
-pub const TOKENIZE_SHARES_PATH: &str = "/liquidstaking.staking.v1beta1.Msg/TokenizeShares";
+pub const TOKENIZE_SHARES_PATH: &str = "/liquidstaking.staking.v1beta1.MsgTokenizeShares";
 
 // Need to create this struct by myself, because it's not defined as importable in the lib
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
