@@ -34,6 +34,7 @@ pub fn execute_bond(
     let params: Parameters = PARAMETERS.load(deps.storage)?;
     if is_paused(
         deps.as_ref(),
+        env.clone(),
         PausedRequest::FromHubParameters(params.clone()),
     )? {
         return Err(StdError::generic_err("the contract is temporarily paused"));

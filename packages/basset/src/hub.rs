@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_binary, Addr, Coin, Decimal, Deps, QueryRequest, StdResult, Uint128, WasmQuery,
+    to_binary, Addr, Coin, Decimal, Deps, Env, QueryRequest, StdResult, Uint128, WasmQuery,
 };
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
@@ -73,8 +73,10 @@ pub enum ExecuteMsg {
         unbonding_period: Option<u64>,
     },
 
-    /// Pauses the contracts. Only the owner or allowed guardians can pause the contracts
-    PauseContracts {},
+    /// Pauses the contracts for the given amount of blocks. Only the owner or allowed guardians can pause the contracts
+    PauseContracts {
+        duration: u64,
+    },
 
     /// Unpauses the contracts. Only the owner allowed to unpause the contracts
     UnpauseContracts {},
@@ -133,12 +135,13 @@ pub enum ExecuteMsg {
 pub enum Cw20HookMsg {
     Unbond {},
 }
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Parameters {
     pub epoch_period: u64,
     pub underlying_coin_denom: String,
     pub unbonding_period: u64,
-    pub paused: bool,
+    pub paused_until: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -191,6 +194,7 @@ pub struct CurrentBatchResponse {
 pub struct WithdrawableUnbondedResponse {
     pub withdrawable: Uint128,
 }
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UnbondRequestsResponse {
     pub address: String,
@@ -233,7 +237,7 @@ pub enum PausedRequest {
     FromHubQuery(Addr),
 }
 
-pub fn is_paused(deps: Deps, req: PausedRequest) -> StdResult<bool> {
+pub fn is_paused(deps: Deps, env: Env, req: PausedRequest) -> StdResult<bool> {
     let params: Parameters = match req {
         PausedRequest::FromHubParameters(p) => p,
         PausedRequest::FromHubQuery(hub_addr) => {
@@ -244,5 +248,8 @@ pub fn is_paused(deps: Deps, req: PausedRequest) -> StdResult<bool> {
         }
     };
 
-    Ok(params.paused)
+    match params.paused_until {
+        Some(paused_until) => Ok(paused_until.ge(&env.block.height)),
+        None => Ok(false),
+    }
 }

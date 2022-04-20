@@ -42,7 +42,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::testing::{mock_env, mock_info};
 
-use crate::contract::{execute, instantiate, query};
+use crate::contract::{execute, instantiate, query, MAX_PAUSE_DURATION};
 use crate::unbond::execute_unbond_statom;
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -2612,15 +2612,17 @@ pub fn test_pause() {
         statom_token_contract,
     );
 
-    // set paused = true
-    let pause_contracts = ExecuteMsg::PauseContracts {};
+    let mut env = mock_env();
+
+    // set paused = true, duration doesn't matter this time
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: 1u64 };
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
-    execute(deps.as_mut(), mock_env(), creator_info, pause_contracts).unwrap();
+    execute(deps.as_mut(), env.clone(), creator_info, pause_contracts).unwrap();
 
     // try to run a not allowed action, should return an error
     let reward_msg = ExecuteMsg::DispatchRewards {};
     let info = mock_info(&owner, &[]);
-    let res = execute(deps.as_mut(), mock_env(), info, reward_msg);
+    let res = execute(deps.as_mut(), env.clone(), info, reward_msg);
     assert_eq!(
         res.unwrap_err(),
         StdError::generic_err("the contract is temporarily paused")
@@ -2629,12 +2631,85 @@ pub fn test_pause() {
     // un-pause the contract
     let unpause_contracts = ExecuteMsg::UnpauseContracts {};
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
-    execute(deps.as_mut(), mock_env(), creator_info, unpause_contracts).unwrap();
+    execute(deps.as_mut(), env.clone(), creator_info, unpause_contracts).unwrap();
 
     // execute the same handler, should work
     let reward_msg = ExecuteMsg::DispatchRewards {};
     let info = mock_info(&owner, &[]);
-    execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
+    execute(deps.as_mut(), env.clone(), info, reward_msg).unwrap();
+
+    // restricted to run pause with zero duration
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: 0u64 };
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), env.clone(), creator_info, pause_contracts);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("pause duration should be greater than zero")
+    );
+
+    // set paused for 50 blocks
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: 50u64 };
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), env.clone(), creator_info, pause_contracts).unwrap();
+    assert_eq!(res.attributes[0].value, "pause_contracts");
+    assert_eq!(res.attributes[1].value, "50");
+    assert_eq!(res.attributes[2].value, "12395"); // mock_env height 12345 + 50
+
+    // try to run an action during the pause, should return an error
+    env.block.height += 40;
+    let reward_msg = ExecuteMsg::DispatchRewards {};
+    let info = mock_info(&owner, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info, reward_msg);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("the contract is temporarily paused")
+    );
+
+    // try to pause contracts for a not greater period of time than they're already paused
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: 10u64 };
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), env.clone(), creator_info, pause_contracts);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("contracts are already paused for a greater or equal duration")
+    );
+
+    // try to run an action after the pause, should work
+    env.block.height += 11; // 12396
+    let reward_msg = ExecuteMsg::DispatchRewards {};
+    let info = mock_info(&owner, &[]);
+    execute(deps.as_mut(), env.clone(), info, reward_msg).unwrap();
+
+    // try to pause for a duration greater than MAX_PAUSE_DURATION results in a pause for MAX_PAUSE_DURATION
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: u64::MAX };
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), env.clone(), creator_info, pause_contracts).unwrap();
+    assert_eq!(res.attributes[0].key, "action");
+    assert_eq!(res.attributes[0].value, "pause_contracts");
+    assert_eq!(res.attributes[1].key, "pause_for");
+    assert_eq!(res.attributes[1].value, format!("{}", MAX_PAUSE_DURATION));
+    assert_eq!(res.attributes[2].key, "pause_until");
+    assert_eq!(
+        res.attributes[2].value,
+        format!("{}", 12396 + MAX_PAUSE_DURATION)
+    );
+
+    // prolong the pause after a while
+    env.block.height += 50000;
+    let pause_contracts = ExecuteMsg::PauseContracts {
+        duration: MAX_PAUSE_DURATION,
+    };
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), env, creator_info, pause_contracts).unwrap();
+    assert_eq!(res.attributes[0].key, "action");
+    assert_eq!(res.attributes[0].value, "pause_contracts");
+    assert_eq!(res.attributes[1].key, "pause_for");
+    assert_eq!(res.attributes[1].value, format!("{}", MAX_PAUSE_DURATION));
+    assert_eq!(res.attributes[2].key, "pause_until");
+    assert_eq!(
+        res.attributes[2].value,
+        format!("{}", 12396 + 50000 + MAX_PAUSE_DURATION)
+    );
 }
 
 #[test]
@@ -2701,8 +2776,8 @@ pub fn test_guardians() {
     assert_eq!(guardians.len(), 1);
     assert_eq!(guardians, vec![guardian2.clone()]);
 
-    // set paused = true
-    let pause_contracts = ExecuteMsg::PauseContracts {};
+    // set paused
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: 1u64 };
     let guardian_info = mock_info(guardian1.as_str(), &[]);
     execute(deps.as_mut(), mock_env(), guardian_info, pause_contracts).unwrap();
 
@@ -2757,13 +2832,13 @@ pub fn test_guardians() {
     assert_eq!(guardians, vec![guardian2.clone()]);
 
     // removed guardian cannot pause the contracts
-    let pause_contracts = ExecuteMsg::PauseContracts {};
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: 1u64 };
     let guardian_info = mock_info(guardian1.as_str(), &[]);
     let res = execute(deps.as_mut(), mock_env(), guardian_info, pause_contracts);
     assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
 
     // but the rest can
-    let pause_contracts = ExecuteMsg::PauseContracts {};
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: 1u64 };
     let guardian_info = mock_info(guardian2.as_str(), &[]);
     execute(deps.as_mut(), mock_env(), guardian_info, pause_contracts).unwrap();
 

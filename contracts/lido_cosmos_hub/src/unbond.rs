@@ -37,6 +37,7 @@ pub fn execute_withdraw_unbonded(
     let params = PARAMETERS.load(deps.storage)?;
     if is_paused(
         deps.as_ref(),
+        env.clone(),
         PausedRequest::FromHubParameters(params.clone()),
     )? {
         return Err(StdError::generic_err("the contract is temporarily paused"));

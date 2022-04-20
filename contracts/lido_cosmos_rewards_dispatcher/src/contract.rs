@@ -136,6 +136,7 @@ pub fn execute_dispatch_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> S
     let config: Config = CONFIG.load(deps.storage)?;
     if is_paused(
         deps.as_ref(),
+        env.clone(),
         PausedRequest::FromHubQuery(config.hub_contract.clone()),
     )? {
         return Err(StdError::generic_err("the contract is temporarily paused"));

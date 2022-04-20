@@ -41,7 +41,7 @@ pub fn execute_update_params(
         epoch_period: epoch_period.unwrap_or(params.epoch_period),
         underlying_coin_denom: params.underlying_coin_denom,
         unbonding_period: unbonding_period.unwrap_or(params.unbonding_period),
-        paused: params.paused,
+        paused_until: params.paused_until,
     };
 
     PARAMETERS.save(deps.storage, &new_params)?;
