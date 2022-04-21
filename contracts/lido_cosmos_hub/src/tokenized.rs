@@ -47,6 +47,8 @@ pub const TOKENIZE_SHARE_RECORD_REDEEM_MSG_TYPE_URL: &str =
 
 pub const TOKENIZE_SHARES_PATH: &str = "/liquidstaking.staking.v1beta1.MsgTokenizeShares";
 
+const TOKENIZE_MODULE_CACONICAL_ADDRESS_LENGTH: usize = 20;
+
 // Need to create this struct by myself, because it's not defined as importable in the lib
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -178,13 +180,13 @@ fn get_largest_validator(
     }))
 }
 
+// we follow the way liquidity staking module does
+// canonical address of the module_account calculated like sha256 hash of the name truncated to 20 bytes
 pub fn get_module_address(deps: Deps, module_name: String) -> StdResult<String> {
     // https://github.com/iqlusioninc/liquidity-staking-module/blob/faf413d4624af0a6fa8aac2c359d1b1b4f6adbc9/x/staking/types/tokenize_share_record.go#L8
-    let mut hasher = Sha256::new();
-    hasher.update(module_name);
-    let result = hasher.finalize();
+    let result = Sha256::digest(module_name.as_bytes());
     // https://github.com/tendermint/tendermint/blob/master/crypto/crypto.go#L19
-    let s = result[..20].to_vec();
+    let s = result[..TOKENIZE_MODULE_CACONICAL_ADDRESS_LENGTH].to_vec();
     deps.api
         .addr_humanize(&CanonicalAddr(Binary(s)))
         .map(|s| s.to_string())
