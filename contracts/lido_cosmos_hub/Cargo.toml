@@ -48,7 +48,10 @@ signed_integer = { path = "../../packages/signed_integers", default-features = f
 lido_cosmos_validators_registry = {path = "../lido_cosmos_validators_registry", features = ["library"]}
 cosmwasm-bignumber = "2.2.0"
 protobuf = { version = "2", features = ["with-bytes"] }
+sha2 = "*"
 
 [dev-dependencies]
 cosmwasm-vm = { version = "1.0.0-beta7", default-features = false, features = ["iterator"] }
 cosmwasm-schema = { version = "1.0.0-beta7", default-features = false  }
+cosmwasm-crypto = { version = "1.0.0-beta7" }
+bech32 = "0.8.1"

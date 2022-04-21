@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
+use cosmwasm_std::testing::{MockQuerier, MockStorage};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, to_vec, Addr, AllBalanceResponse, Api, BalanceResponse,
     BankQuery, Binary, Coin, ContractResult, CustomQuery, Empty, FullDelegation, OwnedDeps,
@@ -27,6 +27,7 @@ use lido_cosmos_validators_registry::registry::{
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
+use super::mock_api::MockApi;
 use crate::tokenize_share_record::{
     QueryTokenizeShareRecordByDenomRequest, QueryTokenizeShareRecordByDenomResponse,
     TokenizeShareRecord,
@@ -113,15 +114,15 @@ impl WasmMockQuerier {
                         .iter()
                         .find(|r| r.share_token_denom == request.denom);
                     if record.is_none() {
-                        return SystemResult::Ok(ContractResult::from(to_binary(&Binary::from(
-                            response.write_to_bytes().unwrap(),
-                        ))));
+                        return SystemResult::Ok(ContractResult::from(Binary::from_base64(
+                            &Binary::from(response.write_to_bytes().unwrap()).to_base64(),
+                        )));
                     }
                     response.set_record(record.unwrap().clone());
 
-                    SystemResult::Ok(ContractResult::from(to_binary(&Binary::from(
-                        response.write_to_bytes().unwrap(),
-                    ))))
+                    SystemResult::Ok(ContractResult::from(Binary::from_base64(
+                        &Binary::from(response.write_to_bytes().unwrap()).to_base64(),
+                    )))
                 } else {
                     unimplemented!()
                 }
