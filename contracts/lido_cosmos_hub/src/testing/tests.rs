@@ -42,7 +42,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::testing::{mock_env, mock_info};
 
-use crate::contract::{execute, instantiate, query};
+use crate::contract::{execute, instantiate, query, MAX_PAUSE_DURATION};
 use crate::unbond::execute_unbond_statom;
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -1408,6 +1408,161 @@ pub fn proper_slashing_statom() {
     }
 }
 
+#[test]
+pub fn failed_withdraw_unbonded_statom() {
+    let mut deps = dependencies(&[]);
+
+    let validator = sample_validator(DEFAULT_VALIDATOR);
+    set_validator_mock(&mut deps.querier);
+
+    let owner = String::from("owner1");
+    let statom_token_contract = String::from("statom_token");
+    let reward_contract = String::from("reward");
+
+    initialize(
+        deps.borrow_mut(),
+        owner,
+        reward_contract,
+        statom_token_contract.clone(),
+    );
+
+    // register_validator
+    do_register_validator(&mut deps, validator.clone());
+    let mut env = mock_env();
+
+    let bob = String::from("bob");
+    let alice = String::from("alice");
+    let bond_msg = ExecuteMsg::BondForStAtom {};
+
+    let info = mock_info(&bob, &[coin(100, "uatom")]);
+    let res_bob = execute(deps.as_mut(), mock_env(), info, bond_msg.clone()).unwrap();
+    assert_eq!(2, res_bob.messages.len());
+
+    let info = mock_info(&alice, &[coin(100, "uatom")]);
+    let res_alice = execute(deps.as_mut(), mock_env(), info, bond_msg).unwrap();
+    assert_eq!(2, res_alice.messages.len());
+
+    deps.querier.with_token_balances(&[(
+        &statom_token_contract,
+        &[
+            (&bob, &Uint128::from(100u128)),
+            (&alice, &Uint128::from(100u128)),
+        ],
+    )]);
+    set_delegation(&mut deps.querier, validator, 200, "uatom");
+
+    // first request - current batch
+    let res = execute_unbond_statom(
+        deps.as_mut(),
+        env.clone(),
+        Uint128::from(10u64),
+        bob.clone(),
+    )
+    .unwrap();
+    // burn message
+    assert_eq!(1, res.messages.len());
+    deps.querier.with_token_balances(&[(
+        &statom_token_contract,
+        &[
+            (&bob, &Uint128::from(90u128)),
+            (&alice, &Uint128::from(100u128)),
+        ],
+    )]);
+
+    env.block.time = env.block.time.plus_seconds(31);
+
+    // second request, realesed first+send request, history id - 1
+    let res = execute_unbond_statom(
+        deps.as_mut(),
+        env.clone(),
+        Uint128::from(10u64),
+        alice.clone(),
+    )
+    .unwrap();
+    // undelegate + burn message
+    assert_eq!(2, res.messages.len());
+
+    deps.querier.with_token_balances(&[(
+        &statom_token_contract,
+        &[
+            (&bob, &Uint128::from(90u128)),
+            (&alice, &Uint128::from(90u128)),
+        ],
+    )]);
+
+    deps.querier.with_native_balances(&[(
+        String::from(MOCK_CONTRACT_ADDR),
+        Coin {
+            denom: "uatom".to_string(),
+            amount: Uint128::from(0u64),
+        },
+    )]);
+
+    env.block.time = env.block.time.plus_seconds(31);
+
+    //third unbond request, released immediately, history id - 2
+    let res = execute_unbond_statom(
+        deps.as_mut(),
+        env.clone(),
+        Uint128::from(10u64),
+        bob.clone(),
+    )
+    .unwrap();
+    // undelegate + burn message
+    assert_eq!(2, res.messages.len());
+
+    deps.querier.with_token_balances(&[(
+        &statom_token_contract,
+        &[
+            (&bob, &Uint128::from(80u128)),
+            (&alice, &Uint128::from(90u128)),
+        ],
+    )]);
+
+    // fabricate balance of the hub contract
+    deps.querier.with_native_balances(&[(
+        String::from(MOCK_CONTRACT_ADDR),
+        Coin {
+            denom: "uatom".to_string(),
+            amount: Uint128::from(20u64),
+        },
+    )]);
+
+    //withdrawing bob's coins from history 1
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_res = execute(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(&bob, &[]),
+        wdraw_unbonded_msg,
+    )
+    .unwrap();
+    assert_eq!(1, wdraw_unbonded_res.messages.len());
+
+    env.block.time = env.block.time.plus_seconds(3);
+    // fabricate balance of the hub contract
+    // for some reason balance decreased by some value, e.g. transfer from HUB to some contract
+    deps.querier.with_native_balances(&[(
+        String::from(MOCK_CONTRACT_ADDR),
+        Coin {
+            denom: "uatom".to_string(),
+            amount: Uint128::from(5u64),
+        },
+    )]);
+    // coins from history 2 undelegated
+    let wdraw_unbonded_msg = ExecuteMsg::WithdrawUnbonded {};
+    let wdraw_unbonded_res = execute(
+        deps.as_mut(),
+        env,
+        mock_info(&alice, &[]),
+        wdraw_unbonded_msg,
+    );
+    assert_eq!(
+        StdError::generic_err("balance reduced since last change: was - 10, now - 5"),
+        wdraw_unbonded_res.err().unwrap()
+    );
+}
+
 /// Covers if the withdraw_rate function is updated before and after withdraw_unbonded,
 /// the finished amount is accurate, user requests are removed from the waitlist, and
 /// the BankMsg::Send is sent.
@@ -1492,14 +1647,9 @@ pub fn proper_withdraw_unbonded_statom() {
         env.clone(),
         info.clone(),
         wdraw_unbonded_msg.clone(),
-    );
-
-    // trigger undelegation message
-    assert!(wdraw_unbonded_res.is_err(), "unbonded error");
-    assert_eq!(
-        wdraw_unbonded_res.unwrap_err(),
-        StdError::generic_err("No withdrawable uatom assets are available yet")
-    );
+    )
+    .unwrap();
+    assert_eq!(wdraw_unbonded_res.attributes[2].value, "0");
 
     let res = execute_unbond_statom(
         deps.as_mut(),
@@ -1688,12 +1838,9 @@ pub fn proper_withdraw_unbonded_respect_slashing_statom() {
         env.clone(),
         info.clone(),
         wdraw_unbonded_msg.clone(),
-    );
-    assert!(wdraw_unbonded_res.is_err(), "unbonded error");
-    assert_eq!(
-        wdraw_unbonded_res.unwrap_err(),
-        StdError::generic_err("No withdrawable uatom assets are available yet")
-    );
+    )
+    .unwrap();
+    assert_eq!(wdraw_unbonded_res.attributes[2].value, "0");
 
     // trigger undelegation message
     let res =
@@ -1734,13 +1881,12 @@ pub fn proper_withdraw_unbonded_respect_slashing_statom() {
     assert_eq!(res.requests[0].0, 1);
 
     // check with query
-    // this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
     };
     let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128::from(1000u64));
+    assert_eq!(res.withdrawable, Uint128::from(899u64));
 
     let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
@@ -1846,12 +1992,9 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_statom() {
         mock_env(),
         info.clone(),
         wdraw_unbonded_msg.clone(),
-    );
-    assert!(wdraw_unbonded_res.is_err(), "unbonded error");
-    assert_eq!(
-        wdraw_unbonded_res.unwrap_err(),
-        StdError::generic_err("No withdrawable uatom assets are available yet")
-    );
+    )
+    .unwrap();
+    assert_eq!(wdraw_unbonded_res.attributes[2].value, "0");
 
     // trigger undelegation message
     let res =
@@ -1911,13 +2054,12 @@ pub fn proper_withdraw_unbonded_respect_inactivity_slashing_statom() {
     assert_eq!(res.requests[0].0, 1);
 
     // check with query
-    // this query does not reflect the actual withdrawable
     let withdrawable = WithdrawableUnbonded {
         address: bob.clone(),
     };
     let query_with = query(deps.as_ref(), env.clone(), withdrawable).unwrap();
     let res: WithdrawableUnbondedResponse = from_binary(&query_with).unwrap();
-    assert_eq!(res.withdrawable, Uint128::from(1000u64));
+    assert_eq!(res.withdrawable, Uint128::from(899u64));
 
     let success_res = execute(deps.as_mut(), env, info, wdraw_unbonded_msg).unwrap();
 
@@ -2470,15 +2612,17 @@ pub fn test_pause() {
         statom_token_contract,
     );
 
-    // set paused = true
-    let pause_contracts = ExecuteMsg::PauseContracts {};
+    let mut env = mock_env();
+
+    // set paused = true, duration doesn't matter this time
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: 1u64 };
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
-    execute(deps.as_mut(), mock_env(), creator_info, pause_contracts).unwrap();
+    execute(deps.as_mut(), env.clone(), creator_info, pause_contracts).unwrap();
 
     // try to run a not allowed action, should return an error
     let reward_msg = ExecuteMsg::DispatchRewards {};
     let info = mock_info(&owner, &[]);
-    let res = execute(deps.as_mut(), mock_env(), info, reward_msg);
+    let res = execute(deps.as_mut(), env.clone(), info, reward_msg);
     assert_eq!(
         res.unwrap_err(),
         StdError::generic_err("the contract is temporarily paused")
@@ -2487,12 +2631,85 @@ pub fn test_pause() {
     // un-pause the contract
     let unpause_contracts = ExecuteMsg::UnpauseContracts {};
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
-    execute(deps.as_mut(), mock_env(), creator_info, unpause_contracts).unwrap();
+    execute(deps.as_mut(), env.clone(), creator_info, unpause_contracts).unwrap();
 
     // execute the same handler, should work
     let reward_msg = ExecuteMsg::DispatchRewards {};
     let info = mock_info(&owner, &[]);
-    execute(deps.as_mut(), mock_env(), info, reward_msg).unwrap();
+    execute(deps.as_mut(), env.clone(), info, reward_msg).unwrap();
+
+    // restricted to run pause with zero duration
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: 0u64 };
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), env.clone(), creator_info, pause_contracts);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("pause duration should be greater than zero")
+    );
+
+    // set paused for 50 blocks
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: 50u64 };
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), env.clone(), creator_info, pause_contracts).unwrap();
+    assert_eq!(res.attributes[0].value, "pause_contracts");
+    assert_eq!(res.attributes[1].value, "50");
+    assert_eq!(res.attributes[2].value, "12395"); // mock_env height 12345 + 50
+
+    // try to run an action during the pause, should return an error
+    env.block.height += 40;
+    let reward_msg = ExecuteMsg::DispatchRewards {};
+    let info = mock_info(&owner, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info, reward_msg);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("the contract is temporarily paused")
+    );
+
+    // try to pause contracts for a not greater period of time than they're already paused
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: 10u64 };
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), env.clone(), creator_info, pause_contracts);
+    assert_eq!(
+        res.unwrap_err(),
+        StdError::generic_err("contracts are already paused for a greater or equal duration")
+    );
+
+    // try to run an action after the pause, should work
+    env.block.height += 11; // 12396
+    let reward_msg = ExecuteMsg::DispatchRewards {};
+    let info = mock_info(&owner, &[]);
+    execute(deps.as_mut(), env.clone(), info, reward_msg).unwrap();
+
+    // try to pause for a duration greater than MAX_PAUSE_DURATION results in a pause for MAX_PAUSE_DURATION
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: u64::MAX };
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), env.clone(), creator_info, pause_contracts).unwrap();
+    assert_eq!(res.attributes[0].key, "action");
+    assert_eq!(res.attributes[0].value, "pause_contracts");
+    assert_eq!(res.attributes[1].key, "pause_for");
+    assert_eq!(res.attributes[1].value, format!("{}", MAX_PAUSE_DURATION));
+    assert_eq!(res.attributes[2].key, "pause_until");
+    assert_eq!(
+        res.attributes[2].value,
+        format!("{}", 12396 + MAX_PAUSE_DURATION)
+    );
+
+    // prolong the pause after a while
+    env.block.height += 50000;
+    let pause_contracts = ExecuteMsg::PauseContracts {
+        duration: MAX_PAUSE_DURATION,
+    };
+    let creator_info = mock_info(String::from("owner1").as_str(), &[]);
+    let res = execute(deps.as_mut(), env, creator_info, pause_contracts).unwrap();
+    assert_eq!(res.attributes[0].key, "action");
+    assert_eq!(res.attributes[0].value, "pause_contracts");
+    assert_eq!(res.attributes[1].key, "pause_for");
+    assert_eq!(res.attributes[1].value, format!("{}", MAX_PAUSE_DURATION));
+    assert_eq!(res.attributes[2].key, "pause_until");
+    assert_eq!(
+        res.attributes[2].value,
+        format!("{}", 12396 + 50000 + MAX_PAUSE_DURATION)
+    );
 }
 
 #[test]
@@ -2532,14 +2749,35 @@ pub fn test_guardians() {
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
     execute(deps.as_mut(), mock_env(), creator_info, add_guardians).unwrap();
 
-    let query_guardians = QueryMsg::Guardians {};
+    let query_guardians = QueryMsg::Guardians {
+        start_after: None,
+        limit: None,
+    };
     let guardians: Vec<String> =
         from_binary(&query(deps.as_ref(), mock_env(), query_guardians).unwrap()).unwrap();
     assert_eq!(guardians.len(), 2);
     assert_eq!(guardians, vec![guardian1.clone(), guardian2.clone()]);
 
-    // set paused = true
-    let pause_contracts = ExecuteMsg::PauseContracts {};
+    let query_guardians = QueryMsg::Guardians {
+        start_after: None,
+        limit: Some(1),
+    };
+    let guardians: Vec<String> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_guardians).unwrap()).unwrap();
+    assert_eq!(guardians.len(), 1);
+    assert_eq!(guardians, vec![guardian1.clone()]);
+
+    let query_guardians = QueryMsg::Guardians {
+        start_after: Some(guardian1.clone()),
+        limit: None,
+    };
+    let guardians: Vec<String> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_guardians).unwrap()).unwrap();
+    assert_eq!(guardians.len(), 1);
+    assert_eq!(guardians, vec![guardian2.clone()]);
+
+    // set paused
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: 1u64 };
     let guardian_info = mock_info(guardian1.as_str(), &[]);
     execute(deps.as_mut(), mock_env(), guardian_info, pause_contracts).unwrap();
 
@@ -2584,20 +2822,23 @@ pub fn test_guardians() {
     let creator_info = mock_info(String::from("owner1").as_str(), &[]);
     execute(deps.as_mut(), mock_env(), creator_info, remove_guardian).unwrap();
 
-    let query_guardians = QueryMsg::Guardians {};
+    let query_guardians = QueryMsg::Guardians {
+        start_after: None,
+        limit: None,
+    };
     let guardians: Vec<String> =
         from_binary(&query(deps.as_ref(), mock_env(), query_guardians).unwrap()).unwrap();
     assert_eq!(guardians.len(), 1);
     assert_eq!(guardians, vec![guardian2.clone()]);
 
     // removed guardian cannot pause the contracts
-    let pause_contracts = ExecuteMsg::PauseContracts {};
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: 1u64 };
     let guardian_info = mock_info(guardian1.as_str(), &[]);
     let res = execute(deps.as_mut(), mock_env(), guardian_info, pause_contracts);
     assert_eq!(res.unwrap_err(), StdError::generic_err("unauthorized"));
 
     // but the rest can
-    let pause_contracts = ExecuteMsg::PauseContracts {};
+    let pause_contracts = ExecuteMsg::PauseContracts { duration: 1u64 };
     let guardian_info = mock_info(guardian2.as_str(), &[]);
     execute(deps.as_mut(), mock_env(), guardian_info, pause_contracts).unwrap();
 

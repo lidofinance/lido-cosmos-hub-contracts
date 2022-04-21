@@ -138,7 +138,6 @@ fn test_update_config() {
     let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: Some(String::from("some_addr")),
         hub_contract: None,
-        statom_reward_denom: None,
         lido_fee_address: None,
         lido_fee_rate: None,
     };
@@ -151,7 +150,6 @@ fn test_update_config() {
     let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: Some(new_owner.clone()),
         hub_contract: None,
-        statom_reward_denom: None,
         lido_fee_address: None,
         lido_fee_rate: None,
     };
@@ -167,7 +165,6 @@ fn test_update_config() {
     let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: None,
         hub_contract: Some(String::from("some_address")),
-        statom_reward_denom: None,
         lido_fee_address: None,
         lido_fee_rate: None,
     };
@@ -183,24 +180,6 @@ fn test_update_config() {
         config.hub_contract
     );
 
-    // change statom_reward_denom
-    let update_config_msg = ExecuteMsg::UpdateConfig {
-        owner: None,
-        hub_contract: None,
-        statom_reward_denom: Some(String::from("new_denom")),
-        lido_fee_address: None,
-        lido_fee_rate: None,
-    };
-    let info = mock_info(&new_owner, &[]);
-    let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
-    assert!(res.is_err());
-    assert_eq!(
-        Some(StdError::generic_err(
-            "updating statom reward denom is forbidden"
-        )),
-        res.err()
-    );
-
     let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(String::from("uatom"), config.statom_reward_denom);
 
@@ -208,7 +187,6 @@ fn test_update_config() {
     let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: None,
         hub_contract: None,
-        statom_reward_denom: None,
         lido_fee_address: Some(String::from("some_address")),
         lido_fee_rate: None,
     };
@@ -228,13 +206,26 @@ fn test_update_config() {
     let update_config_msg = ExecuteMsg::UpdateConfig {
         owner: None,
         hub_contract: None,
-        statom_reward_denom: None,
         lido_fee_address: None,
         lido_fee_rate: Some(Decimal::one()),
     };
     let info = mock_info(&new_owner, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
     assert!(res.is_ok());
+
+    let config = CONFIG.load(&deps.storage).unwrap();
+    assert_eq!(Decimal::one(), config.lido_fee_rate);
+
+    // change lido_fee_rate failed
+    let update_config_msg = ExecuteMsg::UpdateConfig {
+        owner: None,
+        hub_contract: None,
+        lido_fee_address: None,
+        lido_fee_rate: Some(Decimal::from_ratio(2u128, 1u128)),
+    };
+    let info = mock_info(&new_owner, &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
+    assert!(res.is_err());
 
     let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(Decimal::one(), config.lido_fee_rate);

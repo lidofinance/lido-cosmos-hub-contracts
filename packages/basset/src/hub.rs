@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_binary, Addr, Coin, Decimal, Deps, QueryRequest, StdResult, Uint128, WasmQuery,
+    to_binary, Addr, Coin, Decimal, Deps, Env, QueryRequest, StdResult, Uint128, WasmQuery,
 };
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
@@ -73,8 +73,10 @@ pub enum ExecuteMsg {
         unbonding_period: Option<u64>,
     },
 
-    /// Pauses the contracts. Only the owner or allowed guardians can pause the contracts
-    PauseContracts {},
+    /// Pauses the contracts for the given amount of blocks. Only the owner or allowed guardians can pause the contracts
+    PauseContracts {
+        duration: u64,
+    },
 
     /// Unpauses the contracts. Only the owner allowed to unpause the contracts
     UnpauseContracts {},
@@ -133,12 +135,13 @@ pub enum ExecuteMsg {
 pub enum Cw20HookMsg {
     Unbond {},
 }
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Parameters {
     pub epoch_period: u64,
     pub underlying_coin_denom: String,
     pub unbonding_period: u64,
-    pub paused: Option<bool>,
+    pub paused_until: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -149,18 +152,6 @@ pub struct CurrentBatch {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UnbondHistory {
-    pub batch_id: u64,
-    pub time: u64,
-
-    pub statom_amount: Uint128,
-    pub statom_applied_exchange_rate: Decimal,
-    pub statom_withdraw_rate: Decimal,
-
-    pub released: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UnbondHistoryResponse {
     pub batch_id: u64,
     pub time: u64,
 
@@ -203,6 +194,7 @@ pub struct CurrentBatchResponse {
 pub struct WithdrawableUnbondedResponse {
     pub withdrawable: Uint128,
 }
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UnbondRequestsResponse {
     pub address: String,
@@ -211,7 +203,7 @@ pub struct UnbondRequestsResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AllHistoryResponse {
-    pub history: Vec<UnbondHistoryResponse>,
+    pub history: Vec<UnbondHistory>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -234,14 +226,30 @@ pub enum QueryMsg {
         start_from: Option<u64>,
         limit: Option<u32>,
     },
-    Guardians,
+    Guardians {
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
 }
 
-pub fn is_paused(deps: Deps, hub_addr: String) -> StdResult<bool> {
-    let params: Parameters = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: hub_addr,
-        msg: to_binary(&QueryMsg::Parameters {})?,
-    }))?;
+pub enum PausedRequest {
+    FromHubParameters(Parameters),
+    FromHubQuery(Addr),
+}
 
-    Ok(params.paused.unwrap_or(false))
+pub fn is_paused(deps: Deps, env: Env, req: PausedRequest) -> StdResult<bool> {
+    let params: Parameters = match req {
+        PausedRequest::FromHubParameters(p) => p,
+        PausedRequest::FromHubQuery(hub_addr) => {
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: hub_addr.to_string(),
+                msg: to_binary(&QueryMsg::Parameters {})?,
+            }))?
+        }
+    };
+
+    match params.paused_until {
+        Some(paused_until) => Ok(paused_until.ge(&env.block.height)),
+        None => Ok(false),
+    }
 }

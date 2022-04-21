@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use basset::hub::PausedRequest;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
@@ -31,6 +32,13 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
+    if msg.lido_fee_rate > Decimal::one() {
+        return Err(StdError::generic_err(format!(
+            "validation error: lido rate fee {} is too high, max rate is 1",
+            msg.lido_fee_rate
+        )));
+    }
+
     let conf = Config {
         owner: info.sender,
         hub_contract: deps.api.addr_validate(&msg.hub_contract)?,
@@ -51,7 +59,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::UpdateConfig {
             owner,
             hub_contract,
-            statom_reward_denom,
             lido_fee_address,
             lido_fee_rate,
         } => execute_update_config(
@@ -60,7 +67,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             info,
             owner,
             hub_contract,
-            statom_reward_denom,
             lido_fee_address,
             lido_fee_rate,
         ),
@@ -74,7 +80,6 @@ pub fn execute_update_config(
     info: MessageInfo,
     owner: Option<String>,
     hub_contract: Option<String>,
-    statom_reward_denom: Option<String>,
     lido_fee_address: Option<String>,
     lido_fee_rate: Option<Decimal>,
 ) -> StdResult<Response> {
@@ -102,13 +107,13 @@ pub fn execute_update_config(
         })?;
     }
 
-    if let Some(_s) = statom_reward_denom {
-        return Err(StdError::generic_err(
-            "updating statom reward denom is forbidden",
-        ));
-    }
-
     if let Some(r) = lido_fee_rate {
+        if r > Decimal::one() {
+            return Err(StdError::generic_err(format!(
+                "validation error: lido rate fee {} is too high, max rate is 1",
+                r
+            )));
+        }
         CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
             last_config.lido_fee_rate = r;
             Ok(last_config)
@@ -129,7 +134,11 @@ pub fn execute_update_config(
 
 pub fn execute_dispatch_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config: Config = CONFIG.load(deps.storage)?;
-    if is_paused(deps.as_ref(), config.hub_contract.clone().into_string())? {
+    if is_paused(
+        deps.as_ref(),
+        env.clone(),
+        PausedRequest::FromHubQuery(config.hub_contract.clone()),
+    )? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 

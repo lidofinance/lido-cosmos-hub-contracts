@@ -1,90 +1,173 @@
-# CosmWasm Starter Pack
+# Lido Cosmos Validators Registry
 
-This is a template to build smart contracts in Rust to run inside a
-[Cosmos SDK](https://github.com/cosmos/cosmos-sdk) module on all chains that enable it.
-To understand the framework better, please read the overview in the
-[cosmwasm repo](https://github.com/CosmWasm/cosmwasm/blob/master/README.md),
-and dig into the [cosmwasm docs](https://www.cosmwasm.com).
-This assumes you understand the theory and just want to get coding.
+The Validator Registry contract stores an approved validators whitelist.
 
-## Creating a new repo from template
+The main query of the contract - `GetValidatorsForDelegation` returns a list of approved validators sorted by total_delegated amount.
 
-Assuming you have a recent version of rust and cargo installed (via [rustup](https://rustup.rs/)),
-then the following should get you a new repo to start a contract:
+The Hub uses this query to equally distribute delegations between validators.
 
-First, install
-[cargo-generate](https://github.com/ashleygwilliams/cargo-generate).
-Unless you did that before, run this line now:
+# Config
+|Key |Type|Description|
+|-----|--------|-----------|
+|owner|Addr       |Owner of the contract|
+|hub_contract  |Addr      |Contract address of Hub|
 
-```sh
-cargo install cargo-generate --features vendored-openssl
+```json
+{
+  "owner": "cosm1...",
+  "hub_contract": "cosm1..."
+}
+```
+# Validator
+|Key |Type|Description|
+|-----|--------|-----------|
+|total_delegated|Uint128       |Total amount of tokens delegated to this validator from the Hub address|
+|address  |String      |Operator address|
+
+```json
+{
+  "total_delegated": "10000",
+  "address": "cosmvaloper1..."
+}
 ```
 
-Now, use it to create your new contract.
-Go to the folder in which you want to place it and run:
-
-**0.10 (latest)**
-
-```sh
-cargo generate --git https://github.com/CosmWasm/cosmwasm-template.git --name PROJECT_NAME
+# InitMsg
+```rust
+pub struct InstantiateMsg {
+    pub registry: Vec<Validator>,
+    pub hub_contract: String,
+}
 ```
-
-**0.9**
-
-```sh
-cargo generate --git https://github.com/CosmWasm/cosmwasm-template.git --branch 0.9 --name PROJECT_NAME
+```json
+{
+  "registry": [
+    {
+      "address": "cosmvaloper1..."
+    },
+    {
+      "address": "cosmvaloper1..."
+    }
+  ],
+  "hub_contract": "cosm1..."
+}
 ```
+|Key|	Type|	Description|
+|---|-------|--------------|
+|hub_contract|Addr|Contract address of Hub|
+|registry|Vec<Validator>|List of whitelisted validators|
 
-**0.8**
+# ExecuteMsg
+## AddValidator
+Adds a validator to the registry.
 
-```sh
-cargo generate --git https://github.com/CosmWasm/cosmwasm-template.git --branch 0.8 --name PROJECT_NAME
+Can only be executed by the owner.
+```rust
+pub enum ExecuteMsg {
+    AddValidator {
+        validator: Validator
+    },
+}
 ```
-
-You will now have a new folder called `PROJECT_NAME` (I hope you changed that to something else)
-containing a simple working contract and build system that you can customize.
-
-## Create a Repo
-
-After generating, you have a initialized local git repo, but no commits, and no remote.
-Go to a server (eg. github) and create a new upstream repo (called `YOUR-GIT-URL` below).
-Then run the following:
-
-```sh
-# this is needed to create a valid Cargo.lock file (see below)
-cargo check
-git checkout -b master # in case you generate from non-master
-git add .
-git commit -m 'Initial Commit'
-git remote add origin YOUR-GIT-URL
-git push -u origin master
+```json
+{
+  "add_validator": {
+    "validator": {
+      "address": "cosmvaloper1..."
+    }
+  }
+}
 ```
+|Key|	Type|	Description|
+|----|------|--------------|
+|validator	|Validator	|Validator to add to the registry|
 
-## CI Support
+## RemoveValidator
+Removes a validator from the registry.
 
-We have template configurations for both [GitHub Actions](.github/workflows/Basic.yml)
-and [Circle CI](.circleci/config.yml) in the generated project, so you can
-get up and running with CI right away.
+Can only be executed by the owner.
+```rust
+pub enum ExecuteMsg { 
+    RemoveValidator {
+        address: String
+    },
+}
+```
+```json
+{
+  "remove_validator": {
+    "address": "cosmvaloper1..."
+  }
+}
+```
+|Key	|Type	|Description|
+|-------|-------|-----------|
+|address|	Validator|	Address of a to remove from the registry|
 
-One note is that the CI runs all `cargo` commands
-with `--locked` to ensure it uses the exact same versions as you have locally. This also means
-you must have an up-to-date `Cargo.lock` file, which is not auto-generated.
-The first time you set up the project (or after adding any dep), you should ensure the
-`Cargo.lock` file is updated, so the CI will test properly. This can be done simply by
-running `cargo check` or `cargo unit-test`.
+## UpdateConfig
+Updates a registry's configuration.
 
-## Using your project
+Can only be issued by the owner.
 
-Once you have your custom repo, you should check out [Developing](./Developing.md) to explain
-more on how to run tests and develop code. Or go through the
-[online tutorial](https://www.cosmwasm.com/docs/getting-started/intro) to get a better feel
-of how to develop.
+```rust
+pub enum ExecuteMsg {
+    UpdateConfig {
+        owner: Option<String>,
+        hub_contract: Option<String>,
+    },
+}
+```
+```json
+{
+  "owner": "cosm1...",
+  "hub_contract": "cosm1..."
+}
+```
+|Key	|Type	|Description|
+|-------|-------|-----------|
+|owner*	|Addr	|New owner of the contract|
+|hub_contract*	|Addr	|New contract address of Hub|
+\* = optional
 
-[Publishing](./Publishing.md) contains useful information on how to publish your contract
-to the world, once you are ready to deploy it on a running blockchain. And
-[Importing](./Importing.md) contains information about pulling in other contracts or crates
-that have been published.
-
-Please replace this README file with information about your specific project. You can keep
-the `Developing.md` and `Publishing.md` files as useful referenced, but please set some
-proper description in the README.
+# QueryMsg
+## GetValidatorsForDelegation
+Returns validators sorted by total_delegated amount.
+```rust
+pub enum QueryMsg {
+    GetValidatorsForDelegation {},
+}
+```
+```json
+{
+  "get_validators_for_delegation": {}
+}
+```
+Returns a list of Validator:
+```json
+[
+  {
+    "total_delegated": "30000",
+    "address": "cosmvaloper1..."
+  },
+  {
+    "total_delegated": "20000",
+    "address": "cosmvaloper1..."
+  },
+  {
+    "total_delegated": "10000",
+    "address": "cosmvaloper1..."
+  }
+]
+```
+## Config
+Returns the current configuration of the registry.
+```rust
+pub enum QueryMsg {
+    Config {},
+}
+```
+```json
+{
+  "config": {}
+}
+```
+Returns a Config struct.

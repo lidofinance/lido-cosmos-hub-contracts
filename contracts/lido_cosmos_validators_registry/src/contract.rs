@@ -43,6 +43,10 @@ pub fn instantiate(
     )?;
 
     for v in msg.registry {
+        // FIX: update the comment below with correct prefixes after cosmwasm in cosmos hub will have been released
+        // deps.api.addr_validate validates only terra1 prefixed addresses
+        // validators terravaloper1 throws an error, but we can use query_validator witch sucessefully validates valoper address
+        deps.querier.query_validator(&v.address)?;
         REGISTRY.save(deps.storage, v.address.as_str().as_bytes(), &v)?;
     }
 
@@ -106,10 +110,11 @@ pub fn add_validator(
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let owner_address = config.owner;
-    let hub_address = config.hub_contract;
-    if !(info.sender == owner_address || info.sender == hub_address) {
+    if info.sender != owner_address {
         return Err(StdError::generic_err("unauthorized"));
     }
+
+    deps.querier.query_validator(&validator.address)?;
 
     REGISTRY.save(
         deps.storage,
@@ -126,14 +131,14 @@ pub fn remove_validator(
     validator_address: String,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
-    let owner_address = config.owner;
+    let owner_address = config.owner.clone();
     if info.sender != owner_address {
         return Err(StdError::generic_err("unauthorized"));
     }
 
     REGISTRY.remove(deps.storage, validator_address.as_str().as_bytes());
 
-    let mut validators = query_validators(deps.as_ref())?;
+    let mut validators = query_validators(deps.as_ref(), config.clone())?;
     if validators.is_empty() {
         return Err(StdError::generic_err(
             "Cannot remove the last validator in the registry",
@@ -153,6 +158,7 @@ pub fn remove_validator(
 
         let mut redelegations: Vec<(String, Coin)> = vec![];
         if let Some(delegation) = delegated_amount {
+            // TODO: check this code on the cosmos hub network when cosmwasm will have been integrated in the network
             // Terra core returns zero if there is another active redelegation
             // That means we cannot start a new redelegation, so we only remove a validator from
             // the registry.
@@ -174,13 +180,13 @@ pub fn remove_validator(
                 ));
             }
 
-            let regelegate_msg = RedelegateProxy {
+            let redelegate_msg = RedelegateProxy {
                 src_validator: validator_address,
                 redelegations,
             };
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: hub_address.clone().into_string(),
-                msg: to_binary(&regelegate_msg)?,
+                msg: to_binary(&redelegate_msg)?,
                 funds: vec![],
             }));
 
@@ -199,23 +205,18 @@ pub fn remove_validator(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    let config = CONFIG.load(deps.storage)?;
     match msg {
         QueryMsg::GetValidatorsForDelegation {} => {
-            let mut validators = query_validators(deps)?;
+            let mut validators = query_validators(deps, config)?;
             validators.sort_by(|v1, v2| v1.total_delegated.cmp(&v2.total_delegated));
             to_binary(&validators)
         }
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::Config {} => to_binary(&config),
     }
 }
 
-fn query_config(deps: Deps) -> StdResult<Config> {
-    let config = CONFIG.load(deps.storage)?;
-    Ok(config)
-}
-
-fn query_validators(deps: Deps) -> StdResult<Vec<ValidatorResponse>> {
-    let config = CONFIG.load(deps.storage)?;
+fn query_validators(deps: Deps, config: Config) -> StdResult<Vec<ValidatorResponse>> {
     let hub_address = config.hub_contract;
 
     let mut delegations = HashMap::new();

@@ -41,7 +41,7 @@ pub fn execute_update_params(
         epoch_period: epoch_period.unwrap_or(params.epoch_period),
         underlying_coin_denom: params.underlying_coin_denom,
         unbonding_period: unbonding_period.unwrap_or(params.unbonding_period),
-        paused: params.paused,
+        paused_until: params.paused_until,
     };
 
     PARAMETERS.save(deps.storage, &new_params)?;
@@ -63,7 +63,7 @@ pub fn execute_update_config(
     validators_registry_contract: Option<String>,
 ) -> StdResult<Response> {
     // only owner must be able to send this message.
-    let conf = CONFIG.load(deps.storage)?;
+    let mut conf = CONFIG.load(deps.storage)?;
     let sender_raw = info.sender;
     if sender_raw != conf.creator {
         return Err(StdError::generic_err("unauthorized"));
@@ -72,20 +72,10 @@ pub fn execute_update_config(
     let mut messages: Vec<CosmosMsg> = vec![];
 
     if let Some(o) = owner {
-        let owner_raw = deps.api.addr_validate(&o)?;
-
-        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            last_config.creator = owner_raw;
-            Ok(last_config)
-        })?;
+        conf.creator = deps.api.addr_validate(&o)?;
     }
     if let Some(reward) = rewards_dispatcher_contract {
-        let reward_raw = deps.api.addr_validate(&reward)?;
-
-        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            last_config.reward_dispatcher_contract = Some(reward_raw);
-            Ok(last_config)
-        })?;
+        conf.reward_dispatcher_contract = Some(deps.api.addr_validate(&reward)?);
 
         // register the reward contract for automate reward withdrawal.
         let msg: CosmosMsg =
@@ -94,27 +84,19 @@ pub fn execute_update_config(
     }
 
     if let Some(token) = statom_token_contract {
-        let token_raw = deps.api.addr_validate(&token)?;
-
-        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            if last_config.statom_token_contract.is_some() {
-                return Err(StdError::generic_err(
-                    "updating stAtom token address is forbidden",
-                ));
-            }
-
-            last_config.statom_token_contract = Some(token_raw);
-            Ok(last_config)
-        })?;
+        if conf.statom_token_contract.is_some() {
+            return Err(StdError::generic_err(
+                "updating stAtom token address is forbidden",
+            ));
+        }
+        conf.statom_token_contract = Some(deps.api.addr_validate(&token)?);
     }
 
     if let Some(validators_registry) = validators_registry_contract {
-        let validators_raw = deps.api.addr_validate(&validators_registry)?;
-        CONFIG.update(deps.storage, |mut last_config| -> StdResult<_> {
-            last_config.validators_registry_contract = Some(validators_raw);
-            Ok(last_config)
-        })?;
+        conf.validators_registry_contract = Some(deps.api.addr_validate(&validators_registry)?);
     }
+
+    CONFIG.save(deps.storage, &conf)?;
 
     let res = Response::new()
         .add_messages(messages)

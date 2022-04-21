@@ -3,12 +3,6 @@
   "title": "QueryMsg",
   "anyOf": [
     {
-      "type": "string",
-      "enum": [
-        "guardians"
-      ]
-    },
-    {
       "type": "object",
       "required": [
         "config"
@@ -120,6 +114,34 @@
               ],
               "format": "uint64",
               "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "guardians"
+      ],
+      "properties": {
+        "guardians": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         }

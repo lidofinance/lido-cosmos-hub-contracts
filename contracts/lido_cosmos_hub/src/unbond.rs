@@ -14,14 +14,15 @@
 
 use crate::contract::slashing;
 use crate::state::{
-    get_finished_amount, read_unbond_history, remove_unbond_wait_list, store_unbond_history,
-    store_unbond_wait_list, CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
+    calculate_new_withdraw_rate, calculate_newly_added_unbonded_amount, get_finished_amount,
+    read_unbond_history, remove_unbond_wait_list, store_unbond_history, store_unbond_wait_list,
+    CONFIG, CURRENT_BATCH, PARAMETERS, STATE,
 };
-use basset::hub::{CurrentBatch, State, UnbondHistory};
-use cosmwasm_bignumber::{Decimal256, Uint256};
+use basset::hub::{is_paused, CurrentBatch, PausedRequest, State, UnbondHistory};
+use cosmwasm_bignumber::Uint256;
 use cosmwasm_std::{
-    attr, coin, coins, to_binary, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response,
-    StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
+    attr, coin, coins, to_binary, BankMsg, CosmosMsg, DepsMut, Env, MessageInfo, Response,
+    StakingMsg, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 use lido_cosmos_validators_registry::common::calculate_undelegations;
@@ -34,8 +35,12 @@ pub fn execute_withdraw_unbonded(
     info: MessageInfo,
 ) -> StdResult<Response> {
     let params = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
-        return Err(StdError::generic_err("The contract is temporarily paused"));
+    if is_paused(
+        deps.as_ref(),
+        env.clone(),
+        PausedRequest::FromHubParameters(params.clone()),
+    )? {
+        return Err(StdError::generic_err("the contract is temporarily paused"));
     }
     let sender_human = info.sender;
     let contract_address = env.contract.address.clone();
@@ -49,18 +54,18 @@ pub fn execute_withdraw_unbonded(
         .querier
         .query_balance(&env.contract.address, &*coin_denom)?
         .amount;
-
     // calculate withdraw rate for user requests
     process_withdraw_rate(&mut deps, historical_time, hub_balance)?;
 
     let (withdraw_amount, deprecated_batches) =
         get_finished_amount(deps.storage, sender_human.to_string())?;
-
     if withdraw_amount.is_zero() {
-        return Err(StdError::generic_err(format!(
-            "No withdrawable {} assets are available yet",
-            coin_denom
-        )));
+        let res = Response::new().add_attributes(vec![
+            attr("action", "finish_burn"),
+            attr("from", contract_address),
+            attr("amount", withdraw_amount),
+        ]);
+        return Ok(res);
     }
 
     // remove the previous batches for the user
@@ -88,90 +93,6 @@ pub fn execute_withdraw_unbonded(
     Ok(res)
 }
 
-fn calculate_newly_added_unbonded_amount(
-    storage: &mut dyn Storage,
-    last_processed_batch: u64,
-    historical_time: u64,
-) -> (Uint256, u64) {
-    let mut statom_total_unbonded_amount = Uint256::zero();
-    let mut batch_count: u64 = 0;
-
-    // Iterate over unbonded histories that have been processed
-    // to calculate newly added unbonded amount
-    let mut i = last_processed_batch + 1;
-    loop {
-        let history: UnbondHistory;
-        match read_unbond_history(storage, i) {
-            Ok(h) => {
-                if h.time > historical_time {
-                    break;
-                }
-                if !h.released {
-                    history = h.clone();
-                } else {
-                    break;
-                }
-            }
-            Err(_) => break,
-        }
-        let statom_burnt_amount = Uint256::from(history.statom_amount);
-        let statom_historical_rate = Decimal256::from(history.statom_withdraw_rate);
-        let statom_unbonded_amount = statom_burnt_amount * statom_historical_rate;
-
-        statom_total_unbonded_amount += statom_unbonded_amount;
-        batch_count += 1;
-        i += 1;
-    }
-
-    (statom_total_unbonded_amount, batch_count)
-}
-
-fn calculate_new_withdraw_rate(
-    amount: Uint128,
-    withdraw_rate: Decimal,
-    total_unbonded_amount: Uint256,
-    slashed_amount: SignedInt,
-) -> Decimal {
-    let burnt_amount_of_batch = Uint256::from(amount);
-    let historical_rate_of_batch = Decimal256::from(withdraw_rate);
-    let unbonded_amount_of_batch = burnt_amount_of_batch * historical_rate_of_batch;
-
-    // the slashed amount for each batch must be proportional to the unbonded amount of batch
-    let batch_slashing_weight = if total_unbonded_amount != Uint256::zero() {
-        Decimal256::from_ratio(unbonded_amount_of_batch.0, total_unbonded_amount.0)
-    } else {
-        Decimal256::zero()
-    };
-
-    let mut slashed_amount_of_batch = batch_slashing_weight * Uint256::from(slashed_amount.0);
-
-    let actual_unbonded_amount_of_batch: Uint256;
-
-    // If slashed amount is negative, there should be summation instead of subtraction.
-    if slashed_amount.1 {
-        slashed_amount_of_batch = if slashed_amount_of_batch > Uint256::one() {
-            slashed_amount_of_batch - Uint256::one()
-        } else {
-            Uint256::zero()
-        };
-        actual_unbonded_amount_of_batch = unbonded_amount_of_batch + slashed_amount_of_batch;
-    } else {
-        if slashed_amount.0.u128() != 0u128 {
-            slashed_amount_of_batch += Uint256::one();
-        }
-        actual_unbonded_amount_of_batch = Uint256::from(
-            SignedInt::from_subtraction(unbonded_amount_of_batch, slashed_amount_of_batch).0,
-        );
-    }
-
-    // Calculate the new withdraw rate
-    if burnt_amount_of_batch != Uint256::zero() {
-        Decimal::from_ratio(actual_unbonded_amount_of_batch, burnt_amount_of_batch)
-    } else {
-        withdraw_rate
-    }
-}
-
 /// This is designed for an accurate unbonded amount calculation.
 /// Execute while processing withdraw_unbonded
 fn process_withdraw_rate(
@@ -189,8 +110,13 @@ fn process_withdraw_rate(
     if batch_count < 1 {
         return Ok(());
     }
-
     let balance_change = SignedInt::from_subtraction(hub_balance, state.prev_hub_balance);
+    if balance_change.1 {
+        return Err(StdError::generic_err(format!(
+            "balance reduced since last change: was - {}, now - {}",
+            state.prev_hub_balance, hub_balance
+        )));
+    };
     let actual_unbonded_amount = balance_change.0;
 
     let statom_slashed_amount = SignedInt::from_subtraction(

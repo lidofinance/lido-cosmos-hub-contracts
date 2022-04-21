@@ -1,4 +1,4 @@
-# Lido Terra Hub  <!-- omit in toc -->
+# Lido Cosmos Hub  <!-- omit in toc -->
 
 **NOTE**: Reference documentation for this contract is available [here](https://lidofinance.github.io/terra-docs/contracts/hub).
 

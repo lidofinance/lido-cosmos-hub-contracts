@@ -17,6 +17,7 @@ use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
 
+use cw2::set_contract_version;
 use cw20_base::allowances::{execute_decrease_allowance, execute_increase_allowance};
 use cw20_base::contract::instantiate as cw20_init;
 use cw20_base::contract::query as cw20_query;
@@ -25,13 +26,16 @@ use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::handler::*;
 use crate::msg::TokenInitMsg;
 use crate::state::HUB_CONTRACT;
-use basset::hub::is_paused;
+use basset::hub::{is_paused, PausedRequest};
 use cw20::MinterResponse;
 use cw20_base::ContractError;
 
+const CONTRACT_NAME: &str = concat!("crates.io:", env!("CARGO_PKG_NAME"));
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: TokenInitMsg,
@@ -39,7 +43,7 @@ pub fn instantiate(
     HUB_CONTRACT.save(deps.storage, &deps.api.addr_validate(&msg.hub_contract)?)?;
 
     cw20_init(
-        deps,
+        deps.branch(),
         env,
         info,
         InstantiateMsg {
@@ -55,6 +59,8 @@ pub fn instantiate(
         },
     )?;
 
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     Ok(Response::default())
 }
 
@@ -66,7 +72,11 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     let hub_addr: Addr = HUB_CONTRACT.load(deps.storage)?;
-    if is_paused(deps.as_ref(), hub_addr.into_string())? {
+    if is_paused(
+        deps.as_ref(),
+        env.clone(),
+        PausedRequest::FromHubQuery(hub_addr),
+    )? {
         return Err(ContractError::Std(StdError::generic_err(
             "The contract is temporarily paused",
         )));

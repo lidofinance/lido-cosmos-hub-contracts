@@ -14,30 +14,31 @@
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use std::string::FromUtf8Error;
 
 use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128,
-    WasmMsg, WasmQuery,
+    Env, MessageInfo, QueryRequest, Response, StakingMsg, StdError, StdResult, Uint128, WasmMsg,
+    WasmQuery,
 };
 
 use crate::config::{execute_update_config, execute_update_params};
 use crate::state::{
-    all_unbond_history, get_unbond_requests, query_get_finished_amount, CONFIG, CURRENT_BATCH,
-    GUARDIANS, PARAMETERS, STATE,
+    all_unbond_history, get_unbond_requests, query_all_guardians, query_get_finished_amount,
+    CONFIG, CURRENT_BATCH, GUARDIANS, PARAMETERS, STATE,
 };
 use crate::unbond::{execute_unbond_statom, execute_withdraw_unbonded};
 
 use crate::bond::execute_bond;
 use basset::hub::{
-    AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch, CurrentBatchResponse,
-    InstantiateMsg, MigrateMsg, Parameters, QueryMsg, State, StateResponse, UnbondHistoryResponse,
-    UnbondRequestsResponse, WithdrawableUnbondedResponse,
+    is_paused, AllHistoryResponse, BondType, Config, ConfigResponse, CurrentBatch,
+    CurrentBatchResponse, InstantiateMsg, MigrateMsg, Parameters, PausedRequest, QueryMsg, State,
+    StateResponse, UnbondRequestsResponse, WithdrawableUnbondedResponse,
 };
 use basset::hub::{Cw20HookMsg, ExecuteMsg};
 use cw20::{Cw20QueryMsg, Cw20ReceiveMsg, TokenInfoResponse};
 use lido_cosmos_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
+
+pub const MAX_PAUSE_DURATION: u64 = 100800; // approximately 1 week
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -72,7 +73,7 @@ pub fn instantiate(
         epoch_period: msg.epoch_period,
         underlying_coin_denom: msg.underlying_coin_denom,
         unbonding_period: msg.unbonding_period,
-        paused: Some(false),
+        paused_until: None,
     };
 
     PARAMETERS.save(deps.storage, &params)?;
@@ -118,7 +119,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             src_validator,
             redelegations,
         } => execute_redelegate_proxy(deps, env, info, src_validator, redelegations),
-        ExecuteMsg::PauseContracts {} => execute_pause_contracts(deps, env, info),
+        ExecuteMsg::PauseContracts { duration } => {
+            execute_pause_contracts(deps, env, info, duration)
+        }
         ExecuteMsg::UnpauseContracts {} => execute_unpause_contracts(deps, env, info),
         ExecuteMsg::AddGuardians { addresses } => execute_add_guardians(deps, env, info, addresses),
         ExecuteMsg::RemoveGuardians { addresses } => {
@@ -139,6 +142,7 @@ pub fn execute_add_guardians(
     }
 
     for guardian in &guardians {
+        deps.api.addr_validate(guardian)?;
         GUARDIANS.save(deps.storage, guardian.clone(), &true)?;
     }
 
@@ -167,18 +171,43 @@ pub fn execute_remove_guardians(
         .add_attributes(guardians.iter().map(|g| attr("value", g))))
 }
 
-pub fn execute_pause_contracts(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
+pub fn execute_pause_contracts(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    duration: u64,
+) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     if !(info.sender == config.creator || GUARDIANS.has(deps.storage, info.sender.to_string())) {
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    let mut params: Parameters = PARAMETERS.load(deps.storage)?;
-    params.paused = Some(true);
+    if duration == 0 {
+        return Err(StdError::generic_err(
+            "pause duration should be greater than zero",
+        ));
+    }
 
+    let duration = duration.min(MAX_PAUSE_DURATION);
+    let pause_until = env.block.height + duration;
+
+    let mut params: Parameters = PARAMETERS.load(deps.storage)?;
+    if let Some(already_paused_until) = params.paused_until {
+        if already_paused_until >= pause_until {
+            return Err(StdError::generic_err(
+                "contracts are already paused for a greater or equal duration",
+            ));
+        }
+    }
+
+    params.paused_until = Some(pause_until);
     PARAMETERS.save(deps.storage, &params)?;
 
-    let res = Response::new().add_attributes(vec![attr("action", "pause_contracts")]);
+    let res = Response::new().add_attributes(vec![
+        attr("action", "pause_contracts"),
+        attr("pause_for", format!("{}", duration)),
+        attr("pause_until", format!("{}", pause_until)),
+    ]);
     Ok(res)
 }
 
@@ -193,7 +222,7 @@ pub fn execute_unpause_contracts(
     }
 
     let mut params: Parameters = PARAMETERS.load(deps.storage)?;
-    params.paused = Some(false);
+    params.paused_until = None;
 
     PARAMETERS.save(deps.storage, &params)?;
 
@@ -244,7 +273,11 @@ pub fn receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
     let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
+    if is_paused(
+        deps.as_ref(),
+        env.clone(),
+        PausedRequest::FromHubParameters(params),
+    )? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 
@@ -279,7 +312,11 @@ pub fn execute_dispatch_rewards(
     _info: MessageInfo,
 ) -> StdResult<Response> {
     let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
+    if is_paused(
+        deps.as_ref(),
+        env.clone(),
+        PausedRequest::FromHubParameters(params),
+    )? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 
@@ -373,7 +410,11 @@ pub fn slashing(deps: &mut DepsMut, env: Env) -> StdResult<State> {
 /// Handler for tracking slashing
 pub fn execute_slashing(mut deps: DepsMut, env: Env) -> StdResult<Response> {
     let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
+    if is_paused(
+        deps.as_ref(),
+        env.clone(),
+        PausedRequest::FromHubParameters(params),
+    )? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 
@@ -397,20 +438,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::WithdrawableUnbonded { address } => {
             to_binary(&query_withdrawable_unbonded(deps, address, env)?)
         }
-        QueryMsg::Parameters {} => to_binary(&query_params(deps)?),
+        QueryMsg::Parameters {} => to_binary(&query_params(deps, env)?),
         QueryMsg::UnbondRequests { address } => to_binary(&query_unbond_requests(deps, address)?),
         QueryMsg::AllHistory { start_from, limit } => {
-            to_binary(&query_unbond_requests_limitation(deps, start_from, limit)?)
+            to_binary(&query_history_limitation(deps, start_from, limit)?)
         }
-        QueryMsg::Guardians => to_binary(&query_guardians(deps)?),
+        QueryMsg::Guardians { start_after, limit } => {
+            to_binary(&query_all_guardians(deps.storage, start_after, limit)?)
+        }
     }
-}
-
-fn query_guardians(deps: Deps) -> StdResult<Vec<String>> {
-    let guardians = GUARDIANS.keys(deps.storage, None, None, Order::Ascending);
-    let guardians_decoded: Result<Vec<String>, FromUtf8Error> =
-        guardians.map(String::from_utf8).collect();
-    Ok(guardians_decoded?)
 }
 
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
@@ -454,17 +490,27 @@ fn query_withdrawable_unbonded(
     env: Env,
 ) -> StdResult<WithdrawableUnbondedResponse> {
     let params = PARAMETERS.load(deps.storage)?;
+    let coin_denom = params.underlying_coin_denom;
+    let hub_balance = deps
+        .querier
+        .query_balance(&env.contract.address, coin_denom)?
+        .amount;
     let historical_time = env.block.time.seconds() - params.unbonding_period;
-    let all_requests = query_get_finished_amount(deps.storage, address, historical_time)?;
+    let withdrawable_amount =
+        query_get_finished_amount(deps.storage, address, historical_time, hub_balance)?;
 
     let withdrawable = WithdrawableUnbondedResponse {
-        withdrawable: all_requests,
+        withdrawable: withdrawable_amount,
     };
     Ok(withdrawable)
 }
 
-fn query_params(deps: Deps) -> StdResult<Parameters> {
-    PARAMETERS.load(deps.storage)
+fn query_params(deps: Deps, env: Env) -> StdResult<Parameters> {
+    let mut params = PARAMETERS.load(deps.storage)?;
+    if !is_paused(deps, env, PausedRequest::FromHubParameters(params.clone()))? {
+        params.paused_until = None;
+    }
+    Ok(params)
 }
 
 pub(crate) fn query_total_statom_issued(deps: Deps) -> StdResult<Uint128> {
@@ -486,29 +532,13 @@ fn query_unbond_requests(deps: Deps, address: String) -> StdResult<UnbondRequest
     Ok(res)
 }
 
-fn query_unbond_requests_limitation(
+fn query_history_limitation(
     deps: Deps,
     start: Option<u64>,
     limit: Option<u32>,
 ) -> StdResult<AllHistoryResponse> {
     let requests = all_unbond_history(deps.storage, start, limit)?;
-    let requests_responses = requests
-        .iter()
-        .map(|r| UnbondHistoryResponse {
-            batch_id: r.batch_id,
-            time: r.time,
-
-            statom_amount: r.statom_amount,
-            statom_applied_exchange_rate: r.statom_applied_exchange_rate,
-            statom_withdraw_rate: r.statom_withdraw_rate,
-
-            released: r.released,
-        })
-        .collect();
-
-    let res = AllHistoryResponse {
-        history: requests_responses,
-    };
+    let res = AllHistoryResponse { history: requests };
     Ok(res)
 }
 
