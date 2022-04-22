@@ -114,14 +114,13 @@ impl WasmMockQuerier {
                         .iter()
                         .find(|r| r.share_token_denom == request.denom);
                     if record.is_none() {
-                        return SystemResult::Ok(ContractResult::from(Binary::from_base64(
-                            &Binary::from(response.write_to_bytes().unwrap()).to_base64(),
+                        return SystemResult::Ok(ContractResult::Ok(Binary::from(
+                            response.write_to_bytes().unwrap(),
                         )));
                     }
                     response.set_record(record.unwrap().clone());
-
-                    SystemResult::Ok(ContractResult::from(Binary::from_base64(
-                        &Binary::from(response.write_to_bytes().unwrap()).to_base64(),
+                    SystemResult::Ok(ContractResult::Ok(Binary::from(
+                        response.write_to_bytes().unwrap(),
                     )))
                 } else {
                     unimplemented!()
