@@ -12,25 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::state::{CONFIG, PARAMETERS, STATE, TOKENIZED_SHARE_RECIPIENT};
-use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, BalanceResponse, BankQuery, Binary, Coin, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, FullDelegation, MessageInfo, QueryRequest, ReplyOn, Response, StakingQuery,
-    StdError, StdResult, SubMsg, Uint128, WasmMsg, WasmQuery,
-};
-use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
-
 use crate::contract::slashing;
 use crate::math::decimal_division;
+use crate::state::{CONFIG, PARAMETERS, STATE, TOKENIZED_SHARE_RECIPIENT};
 use crate::tokenize_share_record::{
     Coin as ProtoCoin, MsgRedeemTokensforShares, MsgTokenizeShares,
     QueryTokenizeShareRecordByDenomRequest, QueryTokenizeShareRecordByDenomResponse,
     TokenizeShareRecord,
 };
 use basset::hub::Parameters;
+use cosmwasm_std::{
+    attr, to_binary, to_vec, Addr, Attribute, BalanceResponse, BankQuery, Binary, CanonicalAddr,
+    Coin, ContractResult, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, FullDelegation,
+    MessageInfo, QueryRequest, ReplyOn, Response, StakingQuery, StdError, StdResult, SubMsg,
+    SystemResult, Uint128, WasmMsg, WasmQuery,
+};
 use cw20::Cw20ExecuteMsg;
+use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
 use lido_cosmos_validators_registry::registry::ValidatorResponse;
 use protobuf::Message;
+use sha2::{Digest, Sha256};
 use std::ops::Mul;
 use std::string::String;
 
@@ -42,15 +43,48 @@ pub const TOKENIZE_SHARES_REPLY_ID: u64 = 1;
 pub const TOKENIZE_SHARE_RECORD_BY_DENOM_PATH: &str =
     "/liquidstaking.staking.v1beta1.Query/TokenizeShareRecordByDenom";
 pub const TOKENIZE_SHARE_RECORD_REDEEM_MSG_TYPE_URL: &str =
-    "/liquidstaking.staking.v1beta1.MsgRedeemTokens";
+    "/liquidstaking.staking.v1beta1.MsgRedeemTokensforShares";
 
 pub const TOKENIZE_SHARES_PATH: &str = "/liquidstaking.staking.v1beta1.MsgTokenizeShares";
+
+const TOKENIZE_MODULE_CACONICAL_ADDRESS_LENGTH: usize = 20;
 
 // Need to create this struct by myself, because it's not defined as importable in the lib
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct DelegationResponse {
     pub delegation: Option<FullDelegation>,
+}
+
+fn make_stargate_query<T: Message>(
+    deps: Deps,
+    path: String,
+    encoded_query_data: Vec<u8>,
+) -> StdResult<T> {
+    let raw = to_vec::<QueryRequest<Empty>>(&QueryRequest::Stargate {
+        path,
+        data: Binary::from(encoded_query_data),
+    })
+    .map_err(|serialize_err| {
+        StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
+    })?;
+    match deps.querier.raw_query(&raw) {
+        SystemResult::Err(system_err) => {
+            return Err(StdError::generic_err(format!(
+                "Querier system error: {}",
+                system_err
+            )))
+        }
+        SystemResult::Ok(ContractResult::Err(contract_err)) => {
+            return Err(StdError::generic_err(format!(
+                "Querier contract error: {}",
+                contract_err
+            )))
+        }
+        // response(value) is base64 encoded bytes
+        SystemResult::Ok(ContractResult::Ok(value)) => Message::parse_from_bytes(value.as_slice())
+            .map_err(|e| StdError::generic_err(format!("Protobuf parsing error: {}", e))),
+    }
 }
 
 // no guarantee this actually works, no way to test it yet
@@ -66,18 +100,12 @@ fn get_tokenize_share_record_by_denom(
         Err(e) => return Err(StdError::generic_err(e.to_string())),
     };
 
-    let response: Binary = deps.querier.query(&QueryRequest::Stargate {
-        path: TOKENIZE_SHARE_RECORD_BY_DENOM_PATH.to_string(),
-        data: Binary::from(encoded_query_data),
-    })?;
-
-    let decoded_response: QueryTokenizeShareRecordByDenomResponse =
-        match Message::parse_from_bytes(response.as_slice()) {
-            Ok(r) => r,
-            Err(e) => return Err(StdError::generic_err(e.to_string())),
-        };
-
-    Ok(decoded_response.record.into_option())
+    let response: QueryTokenizeShareRecordByDenomResponse = make_stargate_query(
+        deps,
+        TOKENIZE_SHARE_RECORD_BY_DENOM_PATH.to_string(),
+        encoded_query_data,
+    )?;
+    Ok(response.record.into_option())
 }
 
 pub fn build_redeem_tokenize_share_msg(delegator: String, coin: Coin) -> StdResult<CosmosMsg> {
@@ -152,6 +180,18 @@ fn get_largest_validator(
     }))
 }
 
+// we follow the way liquidity staking module does
+// canonical address of the module_account calculated like sha256 hash of the name truncated to 20 bytes
+pub fn get_module_address(deps: Deps, module_name: String) -> StdResult<String> {
+    // https://github.com/iqlusioninc/liquidity-staking-module/blob/faf413d4624af0a6fa8aac2c359d1b1b4f6adbc9/x/staking/types/tokenize_share_record.go#L8
+    let result = Sha256::digest(module_name.as_bytes());
+    // https://github.com/tendermint/tendermint/blob/master/crypto/crypto.go#L19
+    let s = result[..TOKENIZE_MODULE_CACONICAL_ADDRESS_LENGTH].to_vec();
+    deps.api
+        .addr_humanize(&CanonicalAddr(Binary(s)))
+        .map(|s| s.to_string())
+}
+
 pub fn receive_tokenized_share(
     mut deps: DepsMut,
     env: Env,
@@ -211,7 +251,7 @@ pub fn receive_tokenized_share(
         let delegation_response: DelegationResponse =
             deps.querier
                 .query(&QueryRequest::Staking(StakingQuery::Delegation {
-                    delegator: tokenize_share.module_account,
+                    delegator: get_module_address(deps.as_ref(), tokenize_share.module_account)?,
                     validator: tokenize_share.validator,
                 }))?;
 
@@ -247,7 +287,6 @@ pub fn receive_tokenized_share(
             user_tokenized_shares_balance.amount.amount + fund.amount,
         )
         .mul(delegation.amount.amount);
-
         // This is the amount of stATOM tokens that should be minted.
         let mint_amount = decimal_division(redeemed_tokens, state.statom_exchange_rate);
 

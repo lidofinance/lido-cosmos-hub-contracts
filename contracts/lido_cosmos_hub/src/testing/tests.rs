@@ -49,13 +49,15 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw20_base::msg::ExecuteMsg::Mint;
 
 use crate::tokenized::{
-    build_redeem_tokenize_share_msg, TOKENIZE_SHARES_PATH, TOKENIZE_SHARES_REPLY_ID,
+    build_redeem_tokenize_share_msg, get_module_address, TOKENIZE_SHARES_PATH,
+    TOKENIZE_SHARES_REPLY_ID,
 };
 
 use super::mock_querier::{mock_dependencies as dependencies, WasmMockQuerier};
 use crate::state::{CONFIG, TOKENIZED_SHARE_RECIPIENT};
 use lido_cosmos_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
 
+use super::mock_api::MockApi;
 use crate::testing::mock_querier::{LARGEST_VALIDATOR, MAX_VALIDATOR_STAKED};
 use crate::tokenize_share_record::{
     Coin as ProtoCoin, MsgTokenizeShares, MsgTokenizeSharesResponse, TokenizeShareRecord,
@@ -67,7 +69,7 @@ use basset::hub::QueryMsg::{Config, Parameters as Params, State};
 use basset::hub::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, Parameters, QueryMsg, StateResponse,
 };
-use cosmwasm_std::testing::{MockApi, MockStorage};
+use cosmwasm_std::testing::MockStorage;
 use std::borrow::BorrowMut;
 use std::ops::Mul;
 
@@ -1926,7 +1928,6 @@ pub fn test_guardians() {
 #[test]
 fn proper_receive_tokenized_share() {
     let mut deps = dependencies(&[]);
-
     let validator = sample_validator(DEFAULT_VALIDATOR);
     let validator2 = sample_validator(DEFAULT_VALIDATOR2);
     let validator3 = sample_validator(DEFAULT_VALIDATOR3);
@@ -2017,10 +2018,12 @@ fn proper_receive_tokenized_share() {
             validator.address.clone(),
         ),
     );
+    let module_address =
+        Addr::unchecked(get_module_address(deps.as_ref(), module_account.clone()).unwrap());
 
     set_custom_delegation(
         &mut deps.querier,
-        Addr::unchecked(module_account.clone()),
+        module_address.clone(),
         validator,
         tokenize_shares_amount.u128(),
         "uatom",
@@ -2073,7 +2076,7 @@ fn proper_receive_tokenized_share() {
         TokenizeShareRecord::new_tokenize_share(
             3,
             addr1.clone(),
-            module_account.clone(),
+            module_account,
             share_denom1.clone(),
             validator2.address.clone(),
         ),
@@ -2081,7 +2084,7 @@ fn proper_receive_tokenized_share() {
 
     set_custom_delegation(
         &mut deps.querier,
-        Addr::unchecked(module_account),
+        module_address,
         validator2,
         tokenize_shares_amount.u128() / 2, // validator was slashed for 50%
         "uatom",
