@@ -58,7 +58,9 @@ use crate::state::{CONFIG, TOKENIZED_SHARE_RECIPIENT};
 use lido_cosmos_rewards_dispatcher::msg::ExecuteMsg::DispatchRewards;
 
 use super::mock_api::MockApi;
-use crate::testing::mock_querier::{LARGEST_VALIDATOR, MAX_VALIDATOR_STAKED};
+use crate::testing::mock_querier::{
+    LARGEST_VALIDATOR, MAX_VALIDATOR_STAKED, TOKENIZED_SHARES_SUPPLY,
+};
 use crate::tokenize_share_record::{
     Coin as ProtoCoin, MsgTokenizeShares, MsgTokenizeSharesResponse, TokenizeShareRecord,
 };
@@ -2062,7 +2064,10 @@ fn proper_receive_tokenized_share() {
                 msg,
                 to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: addr1.clone(),
-                    amount: tokenize_shares_amount,
+                    // We multiply by the ratio to adjust for the partial send of the tokens
+                    // (user didn't send us the full amount of tokenized shares).
+                    amount: tokenize_shares_amount
+                        .multiply_ratio(tokenize_shares_amount, TOKENIZED_SHARES_SUPPLY),
                 })
                 .unwrap()
             )
@@ -2130,7 +2135,10 @@ fn proper_receive_tokenized_share() {
                 msg,
                 to_binary(&Cw20ExecuteMsg::Mint {
                     recipient: addr1,
-                    amount: Uint128::from(25u128),
+                    // We multiply by the ratio to adjust for the partial send of the tokens
+                    // (user didn't send us the full amount of tokenized shares).
+                    amount: Uint128::from(25u128)
+                        .multiply_ratio(tokenize_shares_amount, TOKENIZED_SHARES_SUPPLY),
                 })
                 .unwrap()
             )
