@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cw_storage_plus::{Item, Map};
+use cosmwasm_std::{Order, StdResult, Storage};
+use cw_storage_plus::{Bound, Item, Map};
 
 use basset::hub::{Config, Parameters, State};
 
@@ -26,3 +27,23 @@ pub const GUARDIANS: Map<String, bool> = Map::new("guardians");
 /// ## Description
 /// Stores addr of recipient who should get converted tokens and address of converted tokens contract
 pub const TOKENIZED_SHARE_RECIPIENT: Item<String> = Item::new("tokenized_share_recipient");
+
+// settings for pagination
+const MAX_LIMIT: u32 = 100;
+const DEFAULT_LIMIT: u32 = 10;
+
+pub fn query_all_guardians(
+    storage: &dyn Storage,
+    start_after: Option<String>,
+    limit: Option<u32>,
+) -> StdResult<Vec<String>> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let start = start_after.map(Bound::exclusive);
+
+    let guardians: Result<Vec<_>, _> = GUARDIANS
+        .keys(storage, start, None, Order::Ascending)
+        .take(limit)
+        .collect();
+
+    guardians
+}

@@ -38,12 +38,6 @@
                 "string",
                 "null"
               ]
-            },
-            "statom_reward_denom": {
-              "type": [
-                "string",
-                "null"
-              ]
             }
           }
         }

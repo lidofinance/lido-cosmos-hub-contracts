@@ -30,7 +30,6 @@ pub enum ExecuteMsg {
     UpdateConfig {
         owner: Option<String>,
         hub_contract: Option<String>,
-        statom_reward_denom: Option<String>,
         lido_fee_address: Option<String>,
         lido_fee_rate: Option<Decimal>,
     },

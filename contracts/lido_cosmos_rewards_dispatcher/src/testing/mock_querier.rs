@@ -76,7 +76,7 @@ impl WasmMockQuerier {
                     if msg == &to_binary(&QueryMsg::Parameters {}).unwrap() {
                         let params = Parameters {
                             underlying_coin_denom: "".to_string(),
-                            paused: None,
+                            paused_until: None,
                             max_burn_ratio: Decimal::from_ratio(
                                 Uint128::new(10),
                                 Uint128::new(100),

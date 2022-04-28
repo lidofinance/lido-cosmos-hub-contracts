@@ -41,7 +41,6 @@ cw-storage-plus = { version = "0.13.1", features = ["iterator"]}
 schemars = "0.8.0"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6.3" }
-rand = "0.5.0"
 lido_cosmos_rewards_dispatcher = {path = "../lido_cosmos_rewards_dispatcher", features = ["library"] }
 basset = { path = "../../packages/basset", default-features = false, version = "0.1.0"}
 signed_integer = { path = "../../packages/signed_integers", default-features = false, version = "0.1.0"}

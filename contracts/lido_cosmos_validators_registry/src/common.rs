@@ -35,7 +35,7 @@ pub fn calculate_delegations(
         } else {
             0u128
         };
-        if coins_per_validator + extra_coin < validator.total_delegated.u128() {
+        if coins_per_validator + extra_coin <= validator.total_delegated.u128() {
             continue;
         }
         let mut to_delegate =
