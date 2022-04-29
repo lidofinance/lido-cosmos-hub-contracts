@@ -43,7 +43,7 @@ pub fn instantiate(
     )?;
 
     for v in msg.registry {
-        // FIX: update the comment below with correct prefixes after cosmwasm in cosmos hub will have been released
+        // FIXME: update the comment below with correct prefixes after cosmwasm in cosmos hub will have been released
         // deps.api.addr_validate validates only terra1 prefixed addresses
         // validators terravaloper1 throws an error, but we can use query_validator witch sucessefully validates valoper address
         deps.querier.query_validator(&v.address)?;
@@ -131,7 +131,7 @@ pub fn remove_validator(
     validator_address: String,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
-    let owner_address = config.owner.clone();
+    let owner_address = config.owner;
     if info.sender != owner_address {
         return Err(StdError::generic_err("unauthorized"));
     }

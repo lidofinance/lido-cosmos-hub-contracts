@@ -177,8 +177,13 @@ pub fn execute_pause_contracts(
             "pause duration should be greater than zero",
         ));
     }
+    if duration > MAX_PAUSE_DURATION {
+        return Err(StdError::generic_err(format!(
+            "pause duration is too big: it's only possible to pause contracts for {} blocks or less",
+            MAX_PAUSE_DURATION
+        )));
+    }
 
-    let duration = duration.min(MAX_PAUSE_DURATION);
     let pause_until = env.block.height + duration;
 
     let mut params: Parameters = PARAMETERS.load(deps.storage)?;

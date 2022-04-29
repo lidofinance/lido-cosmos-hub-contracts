@@ -225,7 +225,12 @@ fn test_update_config() {
     };
     let info = mock_info(&new_owner, &[]);
     let res = execute(deps.as_mut(), mock_env(), info, update_config_msg);
-    assert!(res.is_err());
+    assert_eq!(
+        res,
+        Err(StdError::generic_err(
+            "validation error: lido rate fee 2 is too high, max rate is 1"
+        ))
+    );
 
     let config = CONFIG.load(&deps.storage).unwrap();
     assert_eq!(Decimal::one(), config.lido_fee_rate);
