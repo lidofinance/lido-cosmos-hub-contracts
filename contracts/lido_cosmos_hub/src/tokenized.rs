@@ -310,7 +310,7 @@ pub fn receive_tokenized_share(
         let state = slashing(&mut deps, env.clone())?;
 
         // This is the amount of atom that the sent tokenized coins equal to:
-        // (send tokenized coins / total user amount) * atom value of the
+        // (send tokenized coins / total supply amount) * atom value of the
         // full delegation.
         let redeemed_tokens =
             Decimal::from_ratio(fund.amount, supply_amount).mul(delegation.amount.amount);
