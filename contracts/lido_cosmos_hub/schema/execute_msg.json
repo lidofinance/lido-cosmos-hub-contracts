@@ -63,14 +63,24 @@
       "additionalProperties": false
     },
     {
-      "description": "Pauses the contracts. Only the owner or allowed guardians can pause the contracts",
+      "description": "Pauses the contracts for the given amount of blocks. Only the owner or allowed guardians can pause the contracts",
       "type": "object",
       "required": [
         "pause_contracts"
       ],
       "properties": {
         "pause_contracts": {
-          "type": "object"
+          "type": "object",
+          "required": [
+            "duration"
+          ],
+          "properties": {
+            "duration": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
         }
       },
       "additionalProperties": false

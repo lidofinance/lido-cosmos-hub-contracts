@@ -15,7 +15,7 @@
 use crate::contract::slashing;
 use crate::math::decimal_division;
 use crate::state::{CONFIG, PARAMETERS, STATE};
-use basset::hub::{BondType, Parameters};
+use basset::hub::{is_paused, BondType, Parameters, PausedRequest};
 use cosmwasm_std::{
     attr, to_binary, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response,
     StakingMsg, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
@@ -32,7 +32,11 @@ pub fn execute_bond(
     bond_type: BondType,
 ) -> Result<Response, StdError> {
     let params: Parameters = PARAMETERS.load(deps.storage)?;
-    if params.paused.unwrap_or(false) {
+    if is_paused(
+        deps.as_ref(),
+        env.clone(),
+        PausedRequest::FromHubParameters(params.clone()),
+    )? {
         return Err(StdError::generic_err("the contract is temporarily paused"));
     }
 
@@ -81,17 +85,9 @@ pub fn execute_bond(
 
     // exchange rate should be updated for future
     STATE.update(deps.storage, |mut prev_state| -> StdResult<_> {
-        match bond_type {
-            BondType::BondRewards => {
-                prev_state.total_bond_statom_amount += payment.amount;
-                prev_state.update_statom_exchange_rate(total_supply);
-                Ok(prev_state)
-            }
-            BondType::StAtom => {
-                prev_state.total_bond_statom_amount += payment.amount;
-                Ok(prev_state)
-            }
-        }
+        prev_state.total_bond_statom_amount += payment.amount;
+        prev_state.update_statom_exchange_rate(total_supply);
+        Ok(prev_state)
     })?;
 
     let validators_registry_contract = if let Some(v) = config.validators_registry_contract {

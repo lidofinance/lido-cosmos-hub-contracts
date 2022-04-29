@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_binary, Addr, Coin, Decimal, Deps, QueryRequest, StdResult, Uint128, WasmQuery,
+    to_binary, Addr, Coin, Decimal, Deps, Env, QueryRequest, StdResult, Uint128, WasmQuery,
 };
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
@@ -27,7 +27,6 @@ pub struct State {
     pub statom_exchange_rate: Decimal,
     pub total_bond_statom_amount: Uint128,
     pub prev_hub_balance: Uint128,
-    pub last_unbonded_time: u64,
     pub last_processed_batch: u64,
 }
 
@@ -71,8 +70,10 @@ pub enum ExecuteMsg {
         max_burn_ratio: Decimal,
     },
 
-    /// Pauses the contracts. Only the owner or allowed guardians can pause the contracts
-    PauseContracts {},
+    /// Pauses the contracts for the given amount of blocks. Only the owner or allowed guardians can pause the contracts
+    PauseContracts {
+        duration: u64,
+    },
 
     /// Unpauses the contracts. Only the owner allowed to unpause the contracts
     UnpauseContracts {},
@@ -130,10 +131,11 @@ pub enum ExecuteMsg {
 pub enum Cw20HookMsg {
     Unbond {},
 }
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Parameters {
     pub underlying_coin_denom: String,
-    pub paused: Option<bool>,
+    pub paused_until: Option<u64>,
     pub max_burn_ratio: Decimal,
 }
 
@@ -142,7 +144,6 @@ pub struct StateResponse {
     pub statom_exchange_rate: Decimal,
     pub total_bond_statom_amount: Uint128,
     pub prev_hub_balance: Uint128,
-    pub last_unbonded_time: u64,
     pub last_processed_batch: u64,
 }
 
@@ -163,14 +164,30 @@ pub enum QueryMsg {
     Config {},
     State {},
     Parameters {},
-    Guardians,
+    Guardians {
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
 }
 
-pub fn is_paused(deps: Deps, hub_addr: String) -> StdResult<bool> {
-    let params: Parameters = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: hub_addr,
-        msg: to_binary(&QueryMsg::Parameters {})?,
-    }))?;
+pub enum PausedRequest {
+    FromHubParameters(Parameters),
+    FromHubQuery(Addr),
+}
 
-    Ok(params.paused.unwrap_or(false))
+pub fn is_paused(deps: Deps, env: Env, req: PausedRequest) -> StdResult<bool> {
+    let params: Parameters = match req {
+        PausedRequest::FromHubParameters(p) => p,
+        PausedRequest::FromHubQuery(hub_addr) => {
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: hub_addr.to_string(),
+                msg: to_binary(&QueryMsg::Parameters {})?,
+            }))?
+        }
+    };
+
+    match params.paused_until {
+        Some(paused_until) => Ok(paused_until.ge(&env.block.height)),
+        None => Ok(false),
+    }
 }

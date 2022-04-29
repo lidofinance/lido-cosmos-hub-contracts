@@ -58,7 +58,7 @@ fn add_validator() {
     let _res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     let validator = Validator {
-        address: Default::default(),
+        address: String::from("cosmosvaloper14pt0q5cwf38zt08uu0n6yrstf3rndzr52q28gr"),
     };
 
     let msg = ExecuteMsg::AddValidator {
@@ -91,7 +91,7 @@ fn ownership_tests() {
     let info = mock_info("villain", &coins(2, "token"));
 
     let validator = Validator {
-        address: Default::default(),
+        address: String::from("cosmosvaloper14pt0q5cwf38zt08uu0n6yrstf3rndzr52q28gr"),
     };
 
     let msg = ExecuteMsg::AddValidator {

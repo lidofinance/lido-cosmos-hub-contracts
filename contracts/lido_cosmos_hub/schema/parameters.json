@@ -10,11 +10,13 @@
     "max_burn_ratio": {
       "$ref": "#/definitions/Decimal"
     },
-    "paused": {
+    "paused_until": {
       "type": [
-        "boolean",
+        "integer",
         "null"
-      ]
+      ],
+      "format": "uint64",
+      "minimum": 0.0
     },
     "underlying_coin_denom": {
       "type": "string"

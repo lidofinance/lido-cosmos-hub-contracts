@@ -4,18 +4,12 @@
   "type": "object",
   "required": [
     "last_processed_batch",
-    "last_unbonded_time",
     "prev_hub_balance",
     "statom_exchange_rate",
     "total_bond_statom_amount"
   ],
   "properties": {
     "last_processed_batch": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
-    "last_unbonded_time": {
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
