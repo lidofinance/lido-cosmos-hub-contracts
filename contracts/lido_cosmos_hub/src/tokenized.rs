@@ -16,16 +16,16 @@ use crate::contract::slashing;
 use crate::math::decimal_division;
 use crate::state::{CONFIG, PARAMETERS, STATE, TOKENIZED_SHARE_RECIPIENT};
 use crate::tokenize_share_record::{
-    Coin as ProtoCoin, MsgRedeemTokensforShares, MsgTokenizeShares,
-    QueryTokenizeShareRecordByDenomRequest, QueryTokenizeShareRecordByDenomResponse,
-    TokenizeShareRecord,
+    Coin as ProtoCoin, MsgRedeemTokensforShares, MsgTokenizeShares, QuerySupplyOfRequest,
+    QuerySupplyOfResponse, QueryTokenizeShareRecordByDenomRequest,
+    QueryTokenizeShareRecordByDenomResponse, TokenizeShareRecord,
 };
 use basset::hub::Parameters;
 use cosmwasm_std::{
-    attr, to_binary, to_vec, Addr, Attribute, BalanceResponse, BankQuery, Binary, CanonicalAddr,
-    Coin, ContractResult, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, FullDelegation,
-    MessageInfo, QueryRequest, ReplyOn, Response, StakingQuery, StdError, StdResult, SubMsg,
-    SystemResult, Uint128, WasmMsg, WasmQuery,
+    attr, to_binary, to_vec, Addr, Attribute, Binary, CanonicalAddr, Coin, ContractResult,
+    CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, FullDelegation, MessageInfo, QueryRequest,
+    ReplyOn, Response, StakingQuery, StdError, StdResult, SubMsg, SystemResult, Uint128, WasmMsg,
+    WasmQuery,
 };
 use cw20::Cw20ExecuteMsg;
 use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
@@ -37,16 +37,19 @@ use std::string::String;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
-pub const TOKENIZE_SHARES_REPLY_ID: u64 = 1;
-
+// Query path constants
 pub const TOKENIZE_SHARE_RECORD_BY_DENOM_PATH: &str =
     "/liquidstaking.staking.v1beta1.Query/TokenizeShareRecordByDenom";
 pub const TOKENIZE_SHARE_RECORD_REDEEM_MSG_TYPE_URL: &str =
     "/liquidstaking.staking.v1beta1.MsgRedeemTokensforShares";
+pub const BANK_SUPPLY_BY_DENOM_PATH: &str = "/cosmos.bank.v1beta1.Query/SupplyOf";
 
+// Tx path constants
 pub const TOKENIZE_SHARES_PATH: &str = "/liquidstaking.staking.v1beta1.MsgTokenizeShares";
 
+pub const TOKENIZE_SHARES_REPLY_ID: u64 = 1;
 const TOKENIZE_MODULE_CACONICAL_ADDRESS_LENGTH: usize = 20;
 
 // Need to create this struct by myself, because it's not defined as importable in the lib
@@ -87,7 +90,6 @@ fn make_stargate_query<T: Message>(
     }
 }
 
-// no guarantee this actually works, no way to test it yet
 fn get_tokenize_share_record_by_denom(
     deps: Deps,
     denom: String,
@@ -106,6 +108,24 @@ fn get_tokenize_share_record_by_denom(
         encoded_query_data,
     )?;
     Ok(response.record.into_option())
+}
+
+fn get_bank_supply_of(deps: Deps, denom: String) -> StdResult<Option<ProtoCoin>> {
+    let mut query_data = QuerySupplyOfRequest::new();
+    query_data.set_denom(denom);
+
+    let encoded_query_data = match query_data.write_to_bytes() {
+        Ok(b) => b,
+        Err(e) => return Err(StdError::generic_err(e.to_string())),
+    };
+
+    let response: QuerySupplyOfResponse = make_stargate_query(
+        deps,
+        BANK_SUPPLY_BY_DENOM_PATH.to_string(),
+        encoded_query_data,
+    )?;
+
+    Ok(response.amount.into_option())
 }
 
 pub fn build_redeem_tokenize_share_msg(delegator: String, coin: Coin) -> StdResult<CosmosMsg> {
@@ -264,29 +284,36 @@ pub fn receive_tokenized_share(
             )));
         };
 
-        // Now we have access to the .amount field, which tells us the **total** amount of
-        // tokens that can be currently redeemed. There is no guarantee, though, that the
-        // user sends us the full amount of tokenized shares, so we need to understand which
-        // fraction of the **total** amount we are redeeming: this can be calculated as
-        // the ratio of the sent amount to the user's total balance of the tokenized denom.
+        // There is no guarantee that the user sends us the full amount of tokenized shares, so we
+        // need to understand which fraction of the **total** amount we are redeeming.
+        let supply_response =
+            if let Some(t) = get_bank_supply_of(deps.as_ref(), fund.denom.clone())? {
+                t
+            } else {
+                return Err(StdError::generic_err(format!(
+                    "failed to query denom {} supply",
+                    fund.denom
+                )));
+            };
+        let supply_amount = Uint128::from_str(supply_response.get_amount())?;
 
-        let user_tokenized_shares_balance: BalanceResponse =
-            deps.querier.query(&QueryRequest::Bank(BankQuery::Balance {
-                address: info.sender.to_string(),
-                denom: tokenize_share.share_token_denom,
-            }))?;
+        // This is absolutely impossible, but Decimal::from_ratio simply panics in case
+        // of division by zero, so better safe than sorry.
+        if supply_amount.is_zero() {
+            return Err(StdError::generic_err(format!(
+                "received unexpected zero denom {} supply",
+                fund.denom
+            )));
+        }
 
         // Check slashing & get the current exchange rate.
         let state = slashing(&mut deps, env.clone())?;
 
-        // This is the amount of atom that the send tokenized coins equal to:
-        // (send tokenized coins / total user amount) * atom value of the
+        // This is the amount of atom that the sent tokenized coins equal to:
+        // (send tokenized coins / total supply amount) * atom value of the
         // full delegation.
-        let redeemed_tokens = Decimal::from_ratio(
-            fund.amount,
-            user_tokenized_shares_balance.amount.amount + fund.amount,
-        )
-        .mul(delegation.amount.amount);
+        let redeemed_tokens =
+            Decimal::from_ratio(fund.amount, supply_amount).mul(delegation.amount.amount);
         // This is the amount of stATOM tokens that should be minted.
         let mint_amount = decimal_division(redeemed_tokens, state.statom_exchange_rate);
 

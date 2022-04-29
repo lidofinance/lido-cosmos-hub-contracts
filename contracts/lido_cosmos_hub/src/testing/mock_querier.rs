@@ -29,10 +29,11 @@ use std::marker::PhantomData;
 
 use super::mock_api::MockApi;
 use crate::tokenize_share_record::{
+    Coin as ProtoCoin, QuerySupplyOfRequest, QuerySupplyOfResponse,
     QueryTokenizeShareRecordByDenomRequest, QueryTokenizeShareRecordByDenomResponse,
     TokenizeShareRecord,
 };
-use crate::tokenized::TOKENIZE_SHARE_RECORD_BY_DENOM_PATH;
+use crate::tokenized::{BANK_SUPPLY_BY_DENOM_PATH, TOKENIZE_SHARE_RECORD_BY_DENOM_PATH};
 use basset::hub::Config;
 use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg};
 use lido_cosmos_validators_registry::msg::QueryMsg as QueryValidators;
@@ -46,6 +47,7 @@ pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 pub const VALIDATORS_REGISTRY: &str = "validators_registry";
 pub const LARGEST_VALIDATOR: &str = "largest_validator";
 pub const MAX_VALIDATOR_STAKED: Uint128 = Uint128::new(20000);
+pub const TOKENIZED_SHARES_SUPPLY: Uint128 = Uint128::new(200);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -104,8 +106,20 @@ impl Querier for WasmMockQuerier {
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<CustomQueryWrapper>) -> QuerierResult {
         match &request {
-            QueryRequest::Stargate { path, data } => {
-                if path.as_str() == TOKENIZE_SHARE_RECORD_BY_DENOM_PATH {
+            QueryRequest::Stargate { path, data } => match path.as_str() {
+                BANK_SUPPLY_BY_DENOM_PATH => {
+                    let request: QuerySupplyOfRequest =
+                        Message::parse_from_bytes(data.as_slice()).unwrap();
+                    let mut supply = ProtoCoin::new();
+                    supply.set_amount(TOKENIZED_SHARES_SUPPLY.to_string());
+                    supply.set_denom(request.denom);
+                    let mut response = QuerySupplyOfResponse::new();
+                    response.set_amount(supply);
+                    SystemResult::Ok(ContractResult::Ok(Binary::from(
+                        response.write_to_bytes().unwrap(),
+                    )))
+                }
+                TOKENIZE_SHARE_RECORD_BY_DENOM_PATH => {
                     let request: QueryTokenizeShareRecordByDenomRequest =
                         Message::parse_from_bytes(data.as_slice()).unwrap();
                     let mut response = QueryTokenizeShareRecordByDenomResponse::new();
@@ -122,10 +136,9 @@ impl WasmMockQuerier {
                     SystemResult::Ok(ContractResult::Ok(Binary::from(
                         response.write_to_bytes().unwrap(),
                     )))
-                } else {
-                    unimplemented!()
                 }
-            }
+                _ => unimplemented!(),
+            },
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if contract_addr == VALIDATORS_REGISTRY {
                     match from_binary(msg).unwrap() {
