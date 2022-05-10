@@ -2,7 +2,7 @@
 
 This monorepository contains the source code for the smart contracts implementing Lido Cosmos Liquid Staking Protocol on the [Cosmos Hub](https://hub.cosmos.network) blockchain.
 
-You can find information about the architecture, usage, and function of the smart contracts on the official documentation [site](https://lidofinance.github.io/cosmos-docs/).
+You can find information about the architecture, usage, and function of the smart contracts on the official documentation [site](https://docs.cosmos.lido.fi/).
 
 
 ## Contracts
@@ -52,10 +52,6 @@ make build
 ```
 
 This performs several optimizations which can significantly reduce the final size of the contract binaries, which will be available inside the `artifacts/` directory.
-
-## Documentation
-
-Check you the documentation at https://lidofinance.github.io/cosmos-docs/.
 
 ## License
 
