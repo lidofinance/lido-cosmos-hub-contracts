@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::registry::Validator;
+use cosmwasm_std::Uint128;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -20,16 +21,29 @@ use serde::{Deserialize, Serialize};
 pub struct InstantiateMsg {
     pub registry: Vec<Validator>,
     pub hub_contract: String,
+    pub zone: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    /// Adds a validator to the registry
-    AddValidator { validator: Validator },
+    //Apply for inclusion in the community registry
+    ApplicationRequest {
+        address: String,
+    },
 
-    /// Remove a validator from the registry
-    RemoveValidator { address: String },
+    ProcessApplications {},
+
+    //Move validator from permission-less list to permissioned list and update weight
+    PromoteValidator {
+        address: String,
+        weight: Uint128,
+    },
+
+    //Check validator params and kick validator if needed
+    KickValidator {
+        address: String,
+    },
 
     /// Update config
     UpdateConfig {
